@@ -1,15 +1,60 @@
-﻿import { useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import './App.css'
 
 function App() {
     const [inputText, setInputText] = useState('')
     const [sourceLanguage, setSourceLanguage] = useState('english')
     const [targetLanguage, setTargetLanguage] = useState('asl')
+    const [stream, setStream] = useState<MediaStream | null>(null)
+    const [cameraError, setCameraError] = useState<string | null>(null)
+    const videoRef = useRef<HTMLVideoElement | null>(null)
 
     const swapLanguages = () => {
         setSourceLanguage(targetLanguage)
         setTargetLanguage(sourceLanguage)
     }
+
+    const startCamera = async () => {
+        setCameraError(null)
+        try {
+            if (!navigator.mediaDevices?.getUserMedia) {
+                throw new Error('getUserMedia is not supported in this browser.')
+            }
+            const mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user' },
+                audio: false,
+            })
+            setStream(mediaStream)
+            if (videoRef.current) {
+                videoRef.current.srcObject = mediaStream
+                await videoRef.current.play()
+            }
+        } catch (err: unknown) {
+            console.error('Camera error:', err)
+            const msg =
+                err instanceof DOMException
+                    ? err.name === 'NotAllowedError'
+                        ? 'Camera permission denied. Allow access in browser (lock icon) and OS privacy settings.'
+                        : err.name === 'NotFoundError'
+                            ? 'No camera found. Check if a camera is connected or in use by another app.'
+                            : `Camera error: ${err.message}`
+                    : 'Unable to access camera. Check permissions and device availability.'
+            setCameraError(msg)
+            alert(msg)
+        }
+    }
+
+    const stopCamera = () => {
+        stream?.getTracks().forEach((t) => t.stop())
+        setStream(null)
+        if (videoRef.current) videoRef.current.srcObject = null
+        setCameraError(null)
+    }
+
+    useEffect(() => {
+        return () => stopCamera()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     return (
         <div className="translator-container">
@@ -88,14 +133,22 @@ function App() {
                             />
 
                             <div className="panel-footer">
-                                <button className="feature-button camera-button">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                        <path d="M23 19C23 19.5304 22.7893 20.0391 22.4142 20.4142C22.0391 20.7893 21.5304 21 21 21H3C2.46957 21 1.96086 20.7893 1.58579 20.4142C1.21071 20.0391 1 19.5304 1 19V8C1 7.46957 1.21071 6.96086 1.58579 6.58579C1.96086 6.21071 2.46957 6 3 6H7L9 3H15L17 6H21C21.5304 6 22.0391 6.21071 22.4142 6.58579C22.7893 6.96086 23 7.46957 23 8V19Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                        <path d="M12 17C14.2091 17 16 15.2091 16 13C16 10.7909 14.2091 9 12 9C9.79086 9 8 10.7909 8 13C8 15.2091 9.79086 17 12 17Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                    <span>Camera</span>
-                                </button>
+                                <div className="camera-controls">
+                                    <button
+                                        className="feature-button"
+                                        onClick={stream ? stopCamera : startCamera}
+                                    >
+                                        {stream ? 'Stop Camera' : 'Start Camera'}
+                                    </button>
+                                </div>
                                 <span className="char-counter">{inputText.length}/5000</span>
+                            </div>
+
+                            {cameraError && <div className="camera-error">{cameraError}</div>}
+
+                            <div className={`camera-shell ${stream ? 'is-active' : ''}`}>
+                                {!stream && <div className="camera-placeholder">Camera preview</div>}
+                                <video ref={videoRef} className={`camera-preview ${stream ? 'is-active' : ''}`} playsInline muted />
                             </div>
                         </div>
 
@@ -142,15 +195,12 @@ function App() {
                 <div className="quick-actions">
                     <button className="quick-action-card">
                         <span className="action-icon">📚</span>
-                        <span>Learn Signs</span>
                     </button>
                     <button className="quick-action-card">
                         <span className="action-icon">⚙️</span>
-                        <span>Settings</span>
                     </button>
                     <button className="quick-action-card">
                         <span className="action-icon">❓</span>
-                        <span>Help</span>
                     </button>
                 </div>
             </div>
