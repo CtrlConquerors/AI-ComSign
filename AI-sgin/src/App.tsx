@@ -15,6 +15,7 @@ function App() {
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [isTracking, setIsTracking] = useState(false);
     const [detectedGesture, setDetectedGesture] = useState<string>('');
+    const [translation, setTranslation] = useState<string>(''); // NEW: what appears in Translation box
 
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -69,7 +70,7 @@ function App() {
         }
 
         // Draw hand landmarks
-        if (results.multiHandLandmarks) {
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             for (const landmarks of results.multiHandLandmarks) {
                 drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {
                     color: '#00FF00',
@@ -84,6 +85,10 @@ function App() {
 
             // Simple gesture detection example
             detectGesture(results.multiHandLandmarks);
+        } else {
+            // No hands -> clear gesture/translation labels
+            setDetectedGesture('');
+            setTranslation('');
         }
 
         ctx.restore();
@@ -93,6 +98,7 @@ function App() {
     const detectGesture = (hands: LandmarkList[]) => {
         if (hands.length === 0) {
             setDetectedGesture('');
+            setTranslation('');
             return;
         }
 
@@ -118,10 +124,13 @@ function App() {
 
         if (thumbUp) {
             setDetectedGesture('👍 Thumbs Up');
+            setTranslation('Thumbs up');
         } else if (allFingersExtended) {
             setDetectedGesture('✋ Open Palm');
+            setTranslation('Open palm');
         } else {
             setDetectedGesture('🤷 Unknown');
+            setTranslation('Unknown gesture');
         }
     };
 
@@ -186,9 +195,20 @@ function App() {
         stream?.getTracks().forEach((t) => t.stop());
         setStream(null);
         if (videoRef.current) videoRef.current.srcObject = null;
+
+        // Clear the last frame from the canvas so it doesn't look frozen
+        if (canvasRef.current) {
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
         setCameraError(null);
         setIsTracking(false);
         setDetectedGesture('');
+        setTranslation('');
     };
 
     useEffect(() => {
@@ -332,7 +352,15 @@ function App() {
                             <div className="panel-header">
                                 <h3>Translation</h3>
                                 <div className="output-options">
-                                    <button className="icon-button" title="Copy">
+                                    <button
+                                        className="icon-button"
+                                        title="Copy"
+                                        onClick={() => {
+                                            if (translation) {
+                                                navigator.clipboard.writeText(translation).catch(() => { });
+                                            }
+                                        }}
+                                    >
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                                             <path
                                                 d="M8 17.929H6C4.89543 17.929 4 17.0336 4 15.929V4C4 2.89543 4.89543 2 6 2H18C19.1046 2 20 2.89543 20 4V15.929C20 17.0336 19.1046 17.929 18 17.929H16M8 17.929V20.071C8 21.1756 8.89543 22.071 10 22.071H14C15.1046 22.071 16 21.1756 16 20.071V17.929M8 17.929H16"
@@ -345,17 +373,17 @@ function App() {
                             </div>
 
                             <div className="translation-output">
-                                {inputText ? (
+                                {translation ? (
                                     <div className="output-content">
                                         <div className="sign-animation">
                                             <div className="hand-icon">✋</div>
-                                            <div className="sign-text">Translating...</div>
+                                            <div className="sign-text">{translation}</div>
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="empty-state">
                                         <div className="empty-icon">🤝</div>
-                                        <p>Enter text to see translation</p>
+                                        <p>Enter text or show a gesture to see translation</p>
                                     </div>
                                 )}
                             </div>
