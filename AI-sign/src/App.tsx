@@ -1,580 +1,389 @@
-﻿import { useEffect, useRef, useState } from 'react';
-import './App.css';
-import {
-    Holistic,
-    POSE_CONNECTIONS,
-    FACEMESH_TESSELATION,
-} from '@mediapipe/holistic';
-import type { Results } from '@mediapipe/holistic';
-import { Camera } from '@mediapipe/camera_utils';
-import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import type { LandmarkList } from '@mediapipe/hands';
-
-type PoseLandmark = { x: number; y: number; z: number; visibility?: number };
-type PoseLandmarkList = PoseLandmark[];
-
-function App() {
-    const [inputText, setInputText] = useState('');
-    const [sourceLanguage, setSourceLanguage] = useState('english');
-    const [targetLanguage, setTargetLanguage] = useState('asl');
-    const [stream, setStream] = useState<MediaStream | null>(null);
-    const [cameraError, setCameraError] = useState<string | null>(null);
-    const [isTracking, setIsTracking] = useState(false);
-    const [detectedGesture, setDetectedGesture] = useState<string>('');
-    const [translation, setTranslation] = useState<string>(''); // what appears in Translation box
-
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const holisticRef = useRef<Holistic | null>(null);
-    const cameraRef = useRef<Camera | null>(null);
-
-    // avatar (ragdoll) canvas + pose state
-    const avatarCanvasRef = useRef<HTMLCanvasElement | null>(null);
-    const [avatarPose, setAvatarPose] = useState<{
-        rightHand?: LandmarkList;
-        leftHand?: LandmarkList;
-        upperBody?: PoseLandmarkList;
-        face?: PoseLandmarkList;
-    }>({});
-
-    const swapLanguages = () => {
-        setSourceLanguage(targetLanguage);
-        setTargetLanguage(sourceLanguage);
-    };
-
-    // Initialize MediaPipe Holistic (pose + hands + face)
-    useEffect(() => {
-        if (!videoRef.current || !canvasRef.current) return;
-
-        const holistic = new Holistic({
-            locateFile: (file) =>
-                `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`,
-        });
-
-        holistic.setOptions({
-            modelComplexity: 1,
-            smoothLandmarks: true,
-            enableSegmentation: false,
-            refineFaceLandmarks: true,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.5,
-        });
-
-        holistic.onResults(onResults);
-        holisticRef.current = holistic;
-
-        return () => {
-            holistic.close();
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // Process holistic results (upper body, hands, face)
-    const onResults = (results: Results) => {
-        if (!canvasRef.current) return;
-
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        ctx.save();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Draw video
-        if (results.image) {
-            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-        }
-
-        // Pose (full body, we'll mostly care about upper body)
-        if (results.poseLandmarks) {
-            drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {
-                color: '#00FFFF',
-                lineWidth: 4,
-            });
-        }
-
-        // Face mesh
-        if (results.faceLandmarks) {
-            drawConnectors(ctx, results.faceLandmarks, FACEMESH_TESSELATION, {
-                color: '#FFCC00',
-                lineWidth: 0.5,
-            });
-        }
-
-        // Hands
-        if (results.rightHandLandmarks) {
-            drawLandmarks(ctx, results.rightHandLandmarks, {
-                color: '#00FF00',
-                lineWidth: 2,
-                radius: 5,
-            });
-        }
-        if (results.leftHandLandmarks) {
-            drawLandmarks(ctx, results.leftHandLandmarks, {
-                color: '#FF0000',
-                lineWidth: 2,
-                radius: 5,
-            });
-        }
-
-        // Gesture detection from hands (keep your existing logic, use right hand if available)
-        const hands: LandmarkList[] = [];
-        if (results.rightHandLandmarks) hands.push(results.rightHandLandmarks as unknown as LandmarkList);
-        if (results.leftHandLandmarks) hands.push(results.leftHandLandmarks as unknown as LandmarkList);
-
-        if (hands.length > 0) {
-            detectGesture(hands);
-        } else {
-            setDetectedGesture('');
-            setTranslation('');
-        }
-
-        // Update avatar pose (upper body + face + hands)
-        const upperBody = results.poseLandmarks
-            ? // take only upper body joints (rough subset)
-            ([
-                results.poseLandmarks[11], // left shoulder
-                results.poseLandmarks[12], // right shoulder
-                results.poseLandmarks[23], // left hip
-                results.poseLandmarks[24], // right hip
-                results.poseLandmarks[13], // left elbow
-                results.poseLandmarks[14], // right elbow
-                results.poseLandmarks[15], // left wrist
-                results.poseLandmarks[16], // right wrist
-            ].filter(Boolean) as PoseLandmarkList)
-            : undefined;
-
-        setAvatarPose({
-            rightHand: results.rightHandLandmarks as unknown as LandmarkList | undefined,
-            leftHand: results.leftHandLandmarks as unknown as LandmarkList | undefined,
-            upperBody,
-            face: results.faceLandmarks ?? undefined,
-        });
-
-        ctx.restore();
-    };
-
-    // Basic gesture detection (example: thumbs up, open palm)
-    const detectGesture = (hands: LandmarkList[]) => {
-        if (hands.length === 0) {
-            setDetectedGesture('');
-            setTranslation('');
-            return;
-        }
-
-        const hand = hands[0]; // First hand
-        const thumb_tip = hand[4];
-        const index_tip = hand[8];
-        const middle_tip = hand[12];
-        const ring_tip = hand[16];
-        const pinky_tip = hand[20];
-        const wrist = hand[0];
-
-        const thumbUp =
-            thumb_tip.y < index_tip.y &&
-            thumb_tip.y < middle_tip.y &&
-            thumb_tip.y < ring_tip.y &&
-            thumb_tip.y < pinky_tip.y &&
-            thumb_tip.y < wrist.y;
-
-        const fingerTips = [index_tip, middle_tip, ring_tip, pinky_tip];
-        const allFingersExtended = fingerTips.every((tip) => tip.y < wrist.y);
-
-        if (thumbUp) {
-            setDetectedGesture('👍 Thumbs Up');
-            setTranslation('Thumbs up');
-        } else if (allFingersExtended) {
-            setDetectedGesture('✋ Open Palm');
-            setTranslation('Open palm');
-        } else {
-            setDetectedGesture('🤷 Unknown');
-            setTranslation('Unknown gesture');
-        }
-    };
-
-    const startCamera = async () => {
-        setCameraError(null);
-        try {
-            if (!navigator.mediaDevices?.getUserMedia) {
-                throw new Error('getUserMedia is not supported in this browser.');
-            }
-
-            if (!videoRef.current || !holisticRef.current) return;
-
-            const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: 'user',
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    frameRate: { ideal: 30, max: 30 },
-                },
-                audio: false,
-            });
-
-            setStream(mediaStream);
-            videoRef.current.srcObject = mediaStream;
-            await videoRef.current.play();
-
-            const camera = new Camera(videoRef.current, {
-                onFrame: async () => {
-                    if (holisticRef.current && videoRef.current) {
-                        await holisticRef.current.send({ image: videoRef.current });
-                    }
-                },
-                width: 1280,
-                height: 720,
-            });
-
-            camera.start();
-            cameraRef.current = camera;
-            setIsTracking(true);
-        } catch (err: unknown) {
-            console.error('Camera error:', err);
-            const msg =
-                err instanceof DOMException
-                    ? err.name === 'NotAllowedError'
-                        ? 'Camera permission denied. Allow access in browser (lock icon) and OS privacy settings.'
-                        : err.name === 'NotFoundError'
-                            ? 'No camera found. Check if a camera is connected or in use by another app.'
-                            : `Camera error: ${err.message}`
-                    : 'Unable to access camera. Check permissions and device availability.';
-            setCameraError(msg);
-            alert(msg);
-        }
-    };
-
-    const stopCamera = () => {
-        if (cameraRef.current) {
-            cameraRef.current.stop();
-            cameraRef.current = null;
-        }
-
-        stream?.getTracks().forEach((t) => t.stop());
-        setStream(null);
-        if (videoRef.current) videoRef.current.srcObject = null;
-
-        if (canvasRef.current) {
-            const canvas = canvasRef.current;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            }
-        }
-
-        setCameraError(null);
-        setIsTracking(false);
-        setDetectedGesture('');
-        setTranslation('');
-        setAvatarPose({});
-    };
-
-    // Render avatar pose (upper body + hands + simple face marker)
-    useEffect(() => {
-        const canvas = avatarCanvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        const { upperBody, rightHand, leftHand, face } = avatarPose;
-        if (!upperBody && !rightHand && !leftHand && !face) return;
-
-        const project = (lm: { x: number; y: number }) => ({
-            x: lm.x * canvas.width,
-            y: lm.y * canvas.height,
-        });
-
-        // Draw upper body stick figure (shoulders, hips, arms)
-        if (upperBody && upperBody.length >= 8) {
-            ctx.strokeStyle = '#4fd1ff';
-            ctx.lineWidth = 4;
-
-            const [lShoulder, rShoulder, lHip, rHip, lElbow, rElbow, lWrist, rWrist] =
-                upperBody;
-
-            const p = (lm: PoseLandmark) => project(lm);
-
-            ctx.beginPath();
-            // shoulders
-            const psL = p(lShoulder);
-            const psR = p(rShoulder);
-            ctx.moveTo(psL.x, psL.y);
-            ctx.lineTo(psR.x, psR.y);
-            // spine
-            const phL = p(lHip);
-            const phR = p(rHip);
-            const spineMidX = (psL.x + psR.x) / 2;
-            const spineMidY = (psL.y + psR.y) / 2;
-            const hipMidX = (phL.x + phR.x) / 2;
-            const hipMidY = (phL.y + phR.y) / 2;
-            ctx.moveTo(spineMidX, spineMidY);
-            ctx.lineTo(hipMidX, hipMidY);
-            // left arm
-            const peL = p(lElbow);
-            const pwL = p(lWrist);
-            ctx.moveTo(psL.x, psL.y);
-            ctx.lineTo(peL.x, peL.y);
-            ctx.lineTo(pwL.x, pwL.y);
-            // right arm
-            const peR = p(rElbow);
-            const pwR = p(rWrist);
-            ctx.moveTo(psR.x, psR.y);
-            ctx.lineTo(peR.x, peR.y);
-            ctx.lineTo(pwR.x, pwR.y);
-
-            ctx.stroke();
-        }
-
-        // Simple face marker (head circle at nose if available)
-        if (face && face.length > 0) {
-            const nose = face[1] ?? face[0];
-            const pN = project(nose);
-            ctx.beginPath();
-            ctx.fillStyle = '#ffcc00';
-            ctx.arc(pN.x, pN.y, 16, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        const drawHand = (hand: LandmarkList, color: string) => {
-            ctx.strokeStyle = color;
-            ctx.fillStyle = color;
-            ctx.lineWidth = 3;
-            hand.forEach((lm) => {
-                const { x, y } = project(lm);
-                ctx.beginPath();
-                ctx.arc(x, y, 5, 0, Math.PI * 2);
-                ctx.fill();
-            });
-        };
-
-        if (rightHand) drawHand(rightHand, '#00ff88');
-        if (leftHand) drawHand(leftHand, '#ff4fa3');
-    }, [avatarPose]);
-
-    useEffect(() => {
-        return () => stopCamera();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    return (
-        <div className="translator-container">
-            <div className="background-gradient"></div>
-
-            <header className="header">
-                <div className="logo-section">
-                    <div className="logo-icon">🤟</div>
-                    <h1>SignBridge</h1>
-                </div>
-                <p className="tagline">Breaking Communication Barriers</p>
-            </header>
-
-            <div className="main-content">
-                <div className="translator-card">
-                    <div className="language-bar">
-                        <div className="language-pill">
-                            <span className="language-icon">🗣️</span>
-                            <select
-                                value={sourceLanguage}
-                                onChange={(e) => setSourceLanguage(e.target.value)}
-                                className="language-select"
-                            >
-                                <option value="english">English</option>
-                                <option value="spanish">Spanish</option>
-                                <option value="french">French</option>
-                                <option value="asl">ASL</option>
-                            </select>
-                        </div>
-
-                        <button className="swap-button" onClick={swapLanguages}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                <path
-                                    d="M7 16V4M7 4L3 8M7 4L11 8M17 8V20M17 20L21 16M17 20L13 16"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                />
-                            </svg>
-                        </button>
-
-                        <div className="language-pill">
-                            <span className="language-icon">🤟</span>
-                            <select
-                                value={targetLanguage}
-                                onChange={(e) => setTargetLanguage(e.target.value)}
-                                className="language-select"
-                            >
-                                <option value="asl">ASL</option>
-                                <option value="bsl">BSL</option>
-                                <option value="english">English</option>
-                                <option value="spanish">Spanish</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="translation-area">
-                        <div className="translation-panel input-panel">
-                            <div className="panel-header">
-                                <h3>Source</h3>
-                                <div className="input-options">
-                                    <button className="icon-button" title="Paste">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                            <path
-                                                d="M9 5H7C5.89543 5 5 5.89543 5 7V19C5 20.1046 5.89543 21 7 21H17C18.1046 21 19 20.1046 19 19V7C19 5.89543 18.1046 5 17 5H15M9 5C9 6.10457 9.89543 7 11 7H13C14.1046 7 15 6.10457 15 5M9 5C9 3.89543 9.89543 3 11 3H13C14.1046 3 15 3.89543 15 5"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                            />
-                                        </svg>
-                                    </button>
-                                    <button className="icon-button" title="Clear" onClick={() => setInputText('')}>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                            <path
-                                                d="M6 18L18 6M6 6L18 18"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                            />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <textarea
-                                className="text-input"
-                                placeholder="Type your message here..."
-                                value={inputText}
-                                onChange={(e) => setInputText(e.target.value)}
-                                maxLength={5000}
-                            />
-
-                            <div className="panel-footer">
-                                <div className="camera-controls">
-                                    <button
-                                        className="feature-button"
-                                        onClick={stream ? stopCamera : startCamera}
-                                    >
-                                        {stream ? 'Stop Camera' : 'Start Camera'}
-                                    </button>
-                                    {isTracking && (
-                                        <span className="tracking-badge">🟢 Tracking Active</span>
-                                    )}
-                                </div>
-                                <span className="char-counter">{inputText.length}/5000</span>
-                            </div>
-
-                            {cameraError && <div className="camera-error">{cameraError}</div>}
-
-                            {detectedGesture && (
-                                <div className="gesture-display">
-                                    <strong>Detected:</strong> {detectedGesture}
-                                </div>
-                            )}
-
-                            {/* VTuber-style two-screen layout */}
-                            <div className={`camera-shell vtuber-shell ${stream ? 'is-active' : ''}`}>
-                                {/* LEFT: real camera + landmarks */}
-                                <div className="vtuber-panel real-panel">
-                                    {!stream && <div className="camera-placeholder">Camera preview</div>}
-                                    <video
-                                        ref={videoRef}
-                                        style={{ display: 'none' }}
-                                        playsInline
-                                        muted
-                                    />
-                                    <canvas
-                                        ref={canvasRef}
-                                        className="hand-tracking-canvas"
-                                        width={1280}
-                                        height={720}
-                                    />
-                                </div>
-
-                                {/* RIGHT: ragdoll / avatar mirror */}
-                                <div className="vtuber-panel avatar-panel">
-                                    <div className="avatar-title">Avatar Mirror</div>
-                                    <canvas
-                                        ref={avatarCanvasRef}
-                                        className="avatar-canvas"
-                                        width={640}
-                                        height={360}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="translation-panel output-panel">
-                            <div className="panel-header">
-                                <h3>Translation</h3>
-                                <div className="output-options">
-                                    <button
-                                        className="icon-button"
-                                        title="Copy"
-                                        onClick={() => {
-                                            if (translation) {
-                                                navigator.clipboard.writeText(translation).catch(() => { });
-                                            }
-                                        }}
-                                    >
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                            <path
-                                                d="M8 17.929H6C4.89543 17.929 4 17.0336 4 15.929V4C4 2.89543 4.89543 2 6 2H18C19.1046 2 20 2.89543 20 4V15.929C20 17.0336 19.1046 17.929 18 17.929H16M8 17.929V20.071C8 21.1756 8.89543 22.071 10 22.071H14C15.1046 22.071 16 21.1756 16 20.071V17.929M8 17.929H16"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                            />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="translation-output">
-                                {translation ? (
-                                    <div className="output-content">
-                                        <div className="sign-animation">
-                                            <div className="hand-icon">✋</div>
-                                            <div className="sign-text">{translation}</div>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="empty-state">
-                                        <div className="empty-icon">🤝</div>
-                                        <p>Enter text or show a gesture to see translation</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="panel-footer">
-                                <button className="feature-button play-button">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                        <path
-                                            d="M5 3L19 12L5 21V3Z"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        />
-                                    </svg>
-                                    <span>Play Animation</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="quick-actions">
-                    <button className="quick-action-card">
-                        <span className="action-icon">📚</span>
-                    </button>
-                    <button className="quick-action-card">
-                        <span className="action-icon">⚙️</span>
-                    </button>
-                    <button className="quick-action-card">
-                        <span className="action-icon">❓</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
+﻿import React, { useEffect, useRef, useState } from "react";
+import Webcam from "react-webcam";
+import { FilesetResolver, HandLandmarker, type HandLandmarkerResult } from "@mediapipe/tasks-vision";
+
+// --- 1. ĐỊNH NGHĨA KIỂU DỮ LIỆU ---
+interface Landmark {
+  x: number;
+  y: number;
+  z: number;
+  visibility?: number;
 }
 
-export default App;
+interface SignSample {
+  fileName?: string;
+  signName: string;
+  landmarks: Landmark[];
+}
+
+// --- 2. DỮ LIỆU MẪU (A, B, C, D) ---
+const PRE_TRAINED_DATA: SignSample[] = [
+  {
+    "signName": "a",
+    "landmarks": [
+      { "x": 0.373897, "y": 0.489435, "z": -1.03e-7 }, { "x": 0.396066, "y": 0.477324, "z": -0.00487 },
+      { "x": 0.409668, "y": 0.444840, "z": -0.00644 }, { "x": 0.418581, "y": 0.411878, "z": -0.00889 },
+      { "x": 0.428908, "y": 0.393802, "z": -0.01027 }, { "x": 0.406105, "y": 0.422958, "z": 0.00238 },
+      { "x": 0.408848, "y": 0.397502, "z": -0.00777 }, { "x": 0.402909, "y": 0.420322, "z": -0.01430 },
+      { "x": 0.397101, "y": 0.439514, "z": -0.01676 }, { "x": 0.394295, "y": 0.421061, "z": 0.00163 },
+      { "x": 0.396876, "y": 0.397301, "z": -0.00971 }, { "x": 0.392576, "y": 0.427717, "z": -0.01400 },
+      { "x": 0.388647, "y": 0.448180, "z": -0.01444 }, { "x": 0.383114, "y": 0.421530, "z": -0.00092 },
+      { "x": 0.386009, "y": 0.403764, "z": -0.01247 }, { "x": 0.383949, "y": 0.432913, "z": -0.01232 },
+      { "x": 0.381335, "y": 0.451454, "z": -0.00899 }, { "x": 0.371624, "y": 0.423234, "z": -0.00394 },
+      { "x": 0.375402, "y": 0.410949, "z": -0.01179 }, { "x": 0.375791, "y": 0.430904, "z": -0.01165 },
+      { "x": 0.375371, "y": 0.445445, "z": -0.00944 }
+    ]
+  },
+  {
+    "signName": "b",
+    "landmarks": [
+      { "x": 0.387869, "y": 0.540448, "z": 8.07e-8 }, { "x": 0.402559, "y": 0.520787, "z": -0.00886 },
+      { "x": 0.409980, "y": 0.492708, "z": -0.01302 }, { "x": 0.395766, "y": 0.472613, "z": -0.01671 },
+      { "x": 0.382245, "y": 0.471016, "z": -0.02037 }, { "x": 0.405688, "y": 0.442494, "z": -0.00603 },
+      { "x": 0.406307, "y": 0.401640, "z": -0.01150 }, { "x": 0.406205, "y": 0.377497, "z": -0.01648 },
+      { "x": 0.406012, "y": 0.355883, "z": -0.02028 }, { "x": 0.394151, "y": 0.437752, "z": -0.00669 },
+      { "x": 0.395600, "y": 0.393651, "z": -0.01067 }, { "x": 0.396563, "y": 0.366663, "z": -0.01495 },
+      { "x": 0.397557, "y": 0.344673, "z": -0.01850 }, { "x": 0.384058, "y": 0.441244, "z": -0.00863 },
+      { "x": 0.384941, "y": 0.402350, "z": -0.01202 }, { "x": 0.386573, "y": 0.377910, "z": -0.01552 },
+      { "x": 0.388165, "y": 0.357432, "z": -0.01827 }, { "x": 0.373634, "y": 0.452067, "z": -0.01175 },
+      { "x": 0.374089, "y": 0.421625, "z": -0.01405 }, { "x": 0.375491, "y": 0.402218, "z": -0.01504 },
+      { "x": 0.376911, "y": 0.384722, "z": -0.01615 }
+    ]
+  },
+  {
+    "signName": "c",
+    "landmarks": [
+      { "x": 0.381125, "y": 0.528297, "z": 5.30e-8 }, { "x": 0.399768, "y": 0.517270, "z": -0.00415 },
+      { "x": 0.417553, "y": 0.497731, "z": -0.00548 }, { "x": 0.431175, "y": 0.486549, "z": -0.00754 },
+      { "x": 0.437214, "y": 0.467627, "z": -0.00934 }, { "x": 0.407824, "y": 0.435492, "z": 0.00166 },
+      { "x": 0.413865, "y": 0.399594, "z": -0.00395 }, { "x": 0.420623, "y": 0.393325, "z": -0.00914 },
+      { "x": 0.427399, "y": 0.397338, "z": -0.01217 }, { "x": 0.399214, "y": 0.431649, "z": -0.00041 },
+      { "x": 0.404037, "y": 0.393562, "z": -0.00561 }, { "x": 0.412117, "y": 0.387847, "z": -0.01033 },
+      { "x": 0.420558, "y": 0.395884, "z": -0.01340 }, { "x": 0.390607, "y": 0.433901, "z": -0.00396 },
+      { "x": 0.394597, "y": 0.396522, "z": -0.00950 }, { "x": 0.402559, "y": 0.386975, "z": -0.01318 },
+      { "x": 0.410793, "y": 0.392843, "z": -0.01510 }, { "x": 0.381442, "y": 0.441068, "z": -0.00828 },
+      { "x": 0.385395, "y": 0.410247, "z": -0.01311 }, { "x": 0.392342, "y": 0.394586, "z": -0.01582 },
+      { "x": 0.400032, "y": 0.391087, "z": -0.01732 }
+    ]
+  },
+  {
+    "signName": "d",
+    "landmarks": [
+      { "x": 0.379978, "y": 0.561081, "z": 4.20e-8 }, { "x": 0.400202, "y": 0.536153, "z": 0.00090 },
+      { "x": 0.410219, "y": 0.511661, "z": -0.00330 }, { "x": 0.419273, "y": 0.498829, "z": -0.00993 },
+      { "x": 0.422152, "y": 0.488681, "z": -0.01643 }, { "x": 0.389403, "y": 0.460312, "z": -0.00476 },
+      { "x": 0.391128, "y": 0.416847, "z": -0.01328 }, { "x": 0.392080, "y": 0.392980, "z": -0.01971 },
+      { "x": 0.390091, "y": 0.372787, "z": -0.02424 }, { "x": 0.381285, "y": 0.465909, "z": -0.01136 },
+      { "x": 0.399273, "y": 0.445730, "z": -0.02380 }, { "x": 0.414172, "y": 0.465487, "z": -0.02963 },
+      { "x": 0.420239, "y": 0.485303, "z": -0.03188 }, { "x": 0.377245, "y": 0.478877, "z": -0.01803 },
+      { "x": 0.395843, "y": 0.457274, "z": -0.02860 }, { "x": 0.411426, "y": 0.473365, "z": -0.03023 },
+      { "x": 0.418961, "y": 0.490497, "z": -0.02936 }, { "x": 0.377282, "y": 0.495652, "z": -0.02480 },
+      { "x": 0.392353, "y": 0.478459, "z": -0.03172 }, { "x": 0.405910, "y": 0.482689, "z": -0.03237 },
+      { "x": 0.414997, "y": 0.490366, "z": -0.03172 }
+    ]
+  }
+];
+
+// --- 3. CÁC HÀM TOÁN HỌC BỔ TRỢ ---
+// Tính khoảng cách giữa 2 điểm 3D
+const distance3D = (p1: Landmark, p2: Landmark) => {
+  return Math.sqrt(
+    Math.pow(p1.x - p2.x, 2) + 
+    Math.pow(p1.y - p2.y, 2) + 
+    Math.pow(p1.z - p2.z, 2)
+  );
+};
+
+// Hàm chuẩn hóa
+const normalizeLandmarks = (landmarks: Landmark[]): Landmark[] => {
+  if (!landmarks || landmarks.length === 0) return [];
+  const wrist = landmarks[0];
+  const centered = landmarks.map(p => ({
+    x: p.x - wrist.x,
+    y: p.y - wrist.y,
+    z: p.z - wrist.z
+  }));
+  const maxDist = Math.max(...centered.map(p => Math.sqrt(p.x**2 + p.y**2)));
+  return centered.map(p => ({
+    x: p.x / (maxDist || 1), 
+    y: p.y / (maxDist || 1),
+    z: p.z / (maxDist || 1)
+  }));
+};
+
+const calculateDistance = (userLandmarks: Landmark[], sampleLandmarks: Landmark[]): number => {
+  const normUser = normalizeLandmarks(userLandmarks);
+  const normSample = normalizeLandmarks(sampleLandmarks);
+
+  let distDirect = 0;
+  for (let i = 0; i < normUser.length; i++) {
+    const dx = normUser[i].x - normSample[i].x;
+    const dy = normUser[i].y - normSample[i].y;
+    distDirect += Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // So sánh Mirror (lật ngược) để dùng được cả 2 tay
+  let distMirrored = 0;
+  for (let i = 0; i < normUser.length; i++) {
+    const dx = (-normUser[i].x) - normSample[i].x;
+    const dy = normUser[i].y - normSample[i].y;
+    distMirrored += Math.sqrt(dx * dx + dy * dy);
+  }
+
+  return Math.min(distDirect, distMirrored);
+};
+
+// --- 4. HÀM KIỂM TRA TRẠNG THÁI NGÓN TAY (QUAN TRỌNG) ---
+// Tính độ thẳng của ngón tay (Linearity): 1.0 = Thẳng tắp, < 0.9 = Cong
+const getFingerLinearity = (landmarks: Landmark[], mcpIdx: number, tipIdx: number): number => {
+  const mcp = landmarks[mcpIdx];      // Khớp gốc
+  const pip = landmarks[mcpIdx + 1];  // Khớp giữa 1
+  const dip = landmarks[mcpIdx + 2];  // Khớp giữa 2
+  const tip = landmarks[tipIdx];      // Đỉnh ngón
+
+  const totalBoneLength = distance3D(mcp, pip) + distance3D(pip, dip) + distance3D(dip, tip);
+  const straightLine = distance3D(mcp, tip);
+  return straightLine / (totalBoneLength || 1);
+};
+
+// Kiểm tra xem ngón cái có gập vào không
+const isThumbFolded = (landmarks: Landmark[]): boolean => {
+  const tip = landmarks[4];
+  const mcp = landmarks[2]; // Gốc ngón cái
+  const pinkyBase = landmarks[17]; // Gốc ngón út
+  
+  // Cách 1: So sánh khoảng cách đỉnh ngón cái tới gốc ngón út
+  const distToPinky = distance3D(tip, pinkyBase);
+  
+  // Cách 2: So sánh vị trí ngang của đỉnh ngón cái so với gốc ngón trỏ
+  const indexMcp = landmarks[5];
+  const distToIndex = distance3D(tip, indexMcp);
+
+  // Nếu ngón cái gần ngón út hoặc gần gốc ngón trỏ -> Coi như gập
+  return distToPinky < 0.25 || distToIndex < 0.1; 
+};
+
+const DeepMotionDemo: React.FC = () => {
+  const webcamRef = useRef<Webcam>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isAiLoaded, setIsAiLoaded] = useState<boolean>(false);
+  const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
+
+  const [samples, setSamples] = useState<SignSample[]>(PRE_TRAINED_DATA); 
+  const [prediction, setPrediction] = useState<string>(""); 
+  const [currentLandmarks, setCurrentLandmarks] = useState<Landmark[] | null>(null); 
+  const [debugDist, setDebugDist] = useState<number>(0); 
+
+  useEffect(() => {
+    const loadHandLandmarker = async () => {
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+      );
+      const landmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numHands: 2,
+      });
+      setHandLandmarker(landmarker);
+      setIsAiLoaded(true);
+    };
+    loadHandLandmarker();
+  }, []);
+
+  const drawHandSkeleton = (canvasCtx: CanvasRenderingContext2D, landmarks: Landmark[][]) => {
+    const connections = [
+      [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], 
+      [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], 
+      [13, 17], [17, 18], [18, 19], [19, 20], [0, 17] 
+    ];
+
+    if (!canvasRef.current) return;
+    canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+
+    landmarks.forEach((hand) => {
+      hand.forEach((point) => {
+        canvasCtx.beginPath();
+        canvasCtx.arc(point.x * canvasRef.current!.width, point.y * canvasRef.current!.height, 5, 0, 2 * Math.PI);
+        canvasCtx.fillStyle = "#00FF00";
+        canvasCtx.fill();
+      });
+
+      canvasCtx.strokeStyle = "#FFFFFF";
+      canvasCtx.lineWidth = 2;
+      connections.forEach(([start, end]) => {
+        const p1 = hand[start];
+        const p2 = hand[end];
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(p1.x * canvasRef.current!.width, p1.y * canvasRef.current!.height);
+        canvasCtx.lineTo(p2.x * canvasRef.current!.width, p2.y * canvasRef.current!.height);
+        canvasCtx.stroke();
+      });
+    });
+  };
+
+  const trainSign = (signName: string) => {
+    if (currentLandmarks) {
+      const newSample: SignSample = {
+        signName: signName,
+        landmarks: currentLandmarks 
+      };
+      setSamples((prev) => [...prev, newSample]);
+      alert(`Đã học xong dáng: ${signName}`);
+    } else {
+      alert("Không tìm thấy tay!");
+    }
+  };
+
+  const detectHands = () => {
+    if (webcamRef.current && webcamRef.current.video && webcamRef.current.video.readyState === 4 && handLandmarker && canvasRef.current) {
+      const video = webcamRef.current.video;
+      const nowInMs = Date.now();
+      const results: HandLandmarkerResult = handLandmarker.detectForVideo(video, nowInMs);
+
+      const canvasCtx = canvasRef.current.getContext("2d");
+      canvasRef.current.width = video.videoWidth;
+      canvasRef.current.height = video.videoHeight;
+
+      if (canvasCtx && results.landmarks && results.landmarks.length > 0) {
+        drawHandSkeleton(canvasCtx, results.landmarks);
+        
+        const detectedHand = results.landmarks[0];
+        setCurrentLandmarks(detectedHand);
+
+        if (samples.length > 0) {
+          let bestMatch = "";
+          let minDistance = Infinity;
+
+          samples.forEach((sample) => {
+            // Tính khoảng cách tọa độ
+            const dist = calculateDistance(detectedHand, sample.landmarks);
+            const name = sample.signName.toLowerCase();
+            let isRulePassed = true;
+
+            // --- LUẬT KIỂM TRA (HARD RULES) ---
+            
+            // Lấy độ thẳng của các ngón (Index, Middle, Ring, Pinky)
+            const indexLin = getFingerLinearity(detectedHand, 5, 8);
+            const middleLin = getFingerLinearity(detectedHand, 9, 12);
+            const ringLin = getFingerLinearity(detectedHand, 13, 16);
+            const pinkyLin = getFingerLinearity(detectedHand, 17, 20);
+
+            // 1. CHẶN "OPEN HAND" (Tay xòe 5 ngón) -> Không được nhận là B, C
+            // Nếu cả 4 ngón đều thẳng tưng (> 0.95) và ngón cái duỗi -> KHÔNG PHẢI B, C, A
+            const isAllFingersStraight = indexLin > 0.95 && middleLin > 0.95 && ringLin > 0.95 && pinkyLin > 0.95;
+            
+            if (isAllFingersStraight) {
+               // Nếu tay xòe thẳng tưng, chỉ có thể là số 5 (hoặc Nothing), không thể là A, B, C, D
+               // Trừ khi ngón cái gập (chữ B), ta kiểm tra sau
+               if (!isThumbFolded(detectedHand)) {
+                   isRulePassed = false; // Tay xòe -> Loại hết
+               }
+            }
+
+            // 2. LUẬT CHỮ "A": Tất cả các ngón phải GẬP
+            if (name === "a") {
+               // Nếu ngón trỏ hoặc giữa thẳng -> Sai
+               if (indexLin > 0.9 || middleLin > 0.9) isRulePassed = false; 
+            }
+
+            // 3. LUẬT CHỮ "B": 4 Ngón thẳng + Ngón cái GẬP
+            if (name === "b") {
+               // Nếu ngón trỏ bị cong -> Sai
+               if (indexLin < 0.9) isRulePassed = false;
+               // QUAN TRỌNG: Ngón cái phải Gập
+               if (!isThumbFolded(detectedHand)) isRulePassed = false;
+            }
+
+            // 4. LUẬT CHỮ "C": Các ngón phải CONG (Không thẳng tưng, không gập hẳn)
+            if (name === "c") {
+              // Nếu ngón trỏ thẳng tưng (> 0.96) -> Sai (đây là tay duỗi)
+              if (indexLin > 0.96) isRulePassed = false;
+              // Nếu ngón trỏ gập hẳn (< 0.7) -> Sai (đây là nắm tay)
+              if (indexLin < 0.7) isRulePassed = false;
+            }
+            
+            // 5. LUẬT CHỮ "D": Ngón trỏ THẲNG + Các ngón khác CONG/GẬP
+            if (name === "d") {
+               // Ngón trỏ phải thẳng
+               if (indexLin < 0.9) isRulePassed = false;
+               // Ngón giữa, nhẫn, út phải cong hoặc gập (không được thẳng)
+               if (middleLin > 0.95 || ringLin > 0.95) isRulePassed = false;
+            }
+
+            // ----------------------------------------
+
+            // Chỉ chấp nhận nếu thỏa mãn luật VÀ khoảng cách đủ nhỏ
+            if (isRulePassed && dist < minDistance) {
+              minDistance = dist;
+              bestMatch = sample.signName;
+            }
+          });
+
+          setDebugDist(Number(minDistance.toFixed(2)));
+
+          // Ngưỡng sai số (Threshold): 5.0
+          if (minDistance < 5.0) { 
+            setPrediction(bestMatch); 
+          } else {
+            setPrediction(""); 
+          }
+        }
+      } else if (canvasCtx) {
+        canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        setPrediction("");
+      }
+    }
+    requestAnimationFrame(detectHands);
+  };
+
+  useEffect(() => {
+    if (isAiLoaded) {
+      detectHands();
+    }
+  }, [isAiLoaded, samples]);
+
+  return (
+    <div style={{ position: "relative", width: "640px", margin: "0 auto", textAlign: "center" }}>
+      <h1>AI-ComSign (Strict Mode)</h1>
+      <div style={{ minHeight: "60px", marginBottom: "10px" }}>
+        {prediction ? (
+          <h2 style={{ color: "#007bff", fontSize: "50px", margin: 0, fontWeight: "bold" }}>{prediction}</h2>
+        ) : (
+          <div>
+            <p style={{ color: "#ccc", margin: 0 }}>Hãy thực hiện hành động...</p>
+            <small style={{ color: "#888" }}>Độ lệch: {debugDist} (Yêu cầu &lt; 5.0)</small>
+          </div>
+        )}
+      </div>
+      <div style={{ marginBottom: "15px" }}>
+        <button 
+            onClick={() => trainSign("Tùy chỉnh")} 
+            style={{ padding: "10px 20px", background: "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>
+            ✋ Dạy thêm
+        </button>
+      </div>
+      {!isAiLoaded && <p>Đang tải AI...</p>}
+      <div style={{ position: "relative" }}>
+        <Webcam
+          ref={webcamRef}
+          mirrored={true} 
+          style={{ position: "absolute", left: 0, right: 0, margin: "auto", zIndex: 9, width: 640, height: 480 }}
+        />
+        <canvas
+          ref={canvasRef}
+          style={{ 
+            position: "absolute", left: 0, right: 0, margin: "auto", zIndex: 10, width: 640, height: 480,
+            transform: "scaleX(-1)" 
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+
+
+
+export default DeepMotionDemo;
