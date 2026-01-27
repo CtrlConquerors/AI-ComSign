@@ -1,2 +1,7 @@
 /.vs
 /AI-sign/obj
+/AI-sgin/node_modules
+/AI-sgin/obj
+/AI-sign/.vs
+/AI-sgin/.vite
+/AI-sgin/.vscode
