@@ -12,19 +12,14 @@ dist
 dist-ssr
 *.local
 
+# Build artifacts (Visual Studio)
+obj/
+bin/
+*.cache
+
 # Editor directories and files
-# VS Code
 .vscode/*
 !.vscode/extensions.json
-
-# Visual Studio 2026
-.vs/
-*.slnx
-*.wsuo
-*.esproj
-VSWorkspaceState.json
-
-# Other editors
 .idea
 .DS_Store
 *.suo
@@ -32,7 +27,4 @@ VSWorkspaceState.json
 *.njsproj
 *.sln
 *.sw?
-
-# Build outputs
-.obj/
-bin/
+*.obj
