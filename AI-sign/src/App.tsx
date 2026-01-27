@@ -1,11 +1,17 @@
 ﻿import { useEffect, useRef, useState } from 'react';
 import './App.css';
-import { Hands } from '@mediapipe/hands';
-import type { Results } from '@mediapipe/hands';
+import {
+    Holistic,
+    POSE_CONNECTIONS,
+    FACEMESH_TESSELATION,
+} from '@mediapipe/holistic';
+import type { Results } from '@mediapipe/holistic';
 import { Camera } from '@mediapipe/camera_utils';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
-import { HAND_CONNECTIONS } from '@mediapipe/hands';
 import type { LandmarkList } from '@mediapipe/hands';
+
+type PoseLandmark = { x: number; y: number; z: number; visibility?: number };
+type PoseLandmarkList = PoseLandmark[];
 
 function App() {
     const [inputText, setInputText] = useState('');
@@ -15,44 +21,55 @@ function App() {
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [isTracking, setIsTracking] = useState(false);
     const [detectedGesture, setDetectedGesture] = useState<string>('');
-    const [translation, setTranslation] = useState<string>(''); // NEW: what appears in Translation box
+    const [translation, setTranslation] = useState<string>(''); // what appears in Translation box
 
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const handsRef = useRef<Hands | null>(null);
+    const holisticRef = useRef<Holistic | null>(null);
     const cameraRef = useRef<Camera | null>(null);
+
+    // avatar (ragdoll) canvas + pose state
+    const avatarCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const [avatarPose, setAvatarPose] = useState<{
+        rightHand?: LandmarkList;
+        leftHand?: LandmarkList;
+        upperBody?: PoseLandmarkList;
+        face?: PoseLandmarkList;
+    }>({});
 
     const swapLanguages = () => {
         setSourceLanguage(targetLanguage);
         setTargetLanguage(sourceLanguage);
     };
 
-    // Initialize MediaPipe Hands
+    // Initialize MediaPipe Holistic (pose + hands + face)
     useEffect(() => {
         if (!videoRef.current || !canvasRef.current) return;
 
-        const hands = new Hands({
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-            },
+        const holistic = new Holistic({
+            locateFile: (file) =>
+                `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`,
         });
 
-        hands.setOptions({
-            maxNumHands: 2,
+        holistic.setOptions({
             modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            refineFaceLandmarks: true,
             minDetectionConfidence: 0.7,
             minTrackingConfidence: 0.5,
         });
 
-        hands.onResults(onResults);
-        handsRef.current = hands;
+        holistic.onResults(onResults);
+        holisticRef.current = holistic;
 
         return () => {
-            hands.close();
+            holistic.close();
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Process hand tracking results
+    // Process holistic results (upper body, hands, face)
     const onResults = (results: Results) => {
         if (!canvasRef.current) return;
 
@@ -60,36 +77,79 @@ function App() {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Clear canvas
         ctx.save();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw video frame
+        // Draw video
         if (results.image) {
             ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
         }
 
-        // Draw hand landmarks
-        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-            for (const landmarks of results.multiHandLandmarks) {
-                drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {
-                    color: '#00FF00',
-                    lineWidth: 5,
-                });
-                drawLandmarks(ctx, landmarks, {
-                    color: '#FF0000',
-                    lineWidth: 2,
-                    radius: 6,
-                });
-            }
+        // Pose (full body, we'll mostly care about upper body)
+        if (results.poseLandmarks) {
+            drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {
+                color: '#00FFFF',
+                lineWidth: 4,
+            });
+        }
 
-            // Simple gesture detection example
-            detectGesture(results.multiHandLandmarks);
+        // Face mesh
+        if (results.faceLandmarks) {
+            drawConnectors(ctx, results.faceLandmarks, FACEMESH_TESSELATION, {
+                color: '#FFCC00',
+                lineWidth: 0.5,
+            });
+        }
+
+        // Hands
+        if (results.rightHandLandmarks) {
+            drawLandmarks(ctx, results.rightHandLandmarks, {
+                color: '#00FF00',
+                lineWidth: 2,
+                radius: 5,
+            });
+        }
+        if (results.leftHandLandmarks) {
+            drawLandmarks(ctx, results.leftHandLandmarks, {
+                color: '#FF0000',
+                lineWidth: 2,
+                radius: 5,
+            });
+        }
+
+        // Gesture detection from hands (keep your existing logic, use right hand if available)
+        const hands: LandmarkList[] = [];
+        if (results.rightHandLandmarks) hands.push(results.rightHandLandmarks as unknown as LandmarkList);
+        if (results.leftHandLandmarks) hands.push(results.leftHandLandmarks as unknown as LandmarkList);
+
+        if (hands.length > 0) {
+            detectGesture(hands);
         } else {
-            // No hands -> clear gesture/translation labels
             setDetectedGesture('');
             setTranslation('');
         }
+
+        // Update avatar pose (upper body + face + hands)
+        const upperBody = results.poseLandmarks
+            ? // take only upper body joints (rough subset)
+            ([
+                results.poseLandmarks[11], // left shoulder
+                results.poseLandmarks[12], // right shoulder
+                results.poseLandmarks[23], // left hip
+                results.poseLandmarks[24], // right hip
+                results.poseLandmarks[13], // left elbow
+                results.poseLandmarks[14], // right elbow
+                results.poseLandmarks[15], // left wrist
+                results.poseLandmarks[16], // right wrist
+            ].filter(Boolean) as PoseLandmarkList)
+            : undefined;
+
+        setAvatarPose({
+            rightHand: results.rightHandLandmarks as unknown as LandmarkList | undefined,
+            leftHand: results.leftHandLandmarks as unknown as LandmarkList | undefined,
+            upperBody,
+            face: results.faceLandmarks ?? undefined,
+        });
 
         ctx.restore();
     };
@@ -110,7 +170,6 @@ function App() {
         const pinky_tip = hand[20];
         const wrist = hand[0];
 
-        // Example: Thumbs up detection
         const thumbUp =
             thumb_tip.y < index_tip.y &&
             thumb_tip.y < middle_tip.y &&
@@ -118,7 +177,6 @@ function App() {
             thumb_tip.y < pinky_tip.y &&
             thumb_tip.y < wrist.y;
 
-        // Example: Open palm detection
         const fingerTips = [index_tip, middle_tip, ring_tip, pinky_tip];
         const allFingersExtended = fingerTips.every((tip) => tip.y < wrist.y);
 
@@ -141,7 +199,7 @@ function App() {
                 throw new Error('getUserMedia is not supported in this browser.');
             }
 
-            if (!videoRef.current || !handsRef.current) return;
+            if (!videoRef.current || !holisticRef.current) return;
 
             const mediaStream = await navigator.mediaDevices.getUserMedia({
                 video: {
@@ -157,11 +215,10 @@ function App() {
             videoRef.current.srcObject = mediaStream;
             await videoRef.current.play();
 
-            // Start hand tracking
             const camera = new Camera(videoRef.current, {
                 onFrame: async () => {
-                    if (handsRef.current && videoRef.current) {
-                        await handsRef.current.send({ image: videoRef.current });
+                    if (holisticRef.current && videoRef.current) {
+                        await holisticRef.current.send({ image: videoRef.current });
                     }
                 },
                 width: 1280,
@@ -196,7 +253,6 @@ function App() {
         setStream(null);
         if (videoRef.current) videoRef.current.srcObject = null;
 
-        // Clear the last frame from the canvas so it doesn't look frozen
         if (canvasRef.current) {
             const canvas = canvasRef.current;
             const ctx = canvas.getContext('2d');
@@ -209,10 +265,96 @@ function App() {
         setIsTracking(false);
         setDetectedGesture('');
         setTranslation('');
+        setAvatarPose({});
     };
+
+    // Render avatar pose (upper body + hands + simple face marker)
+    useEffect(() => {
+        const canvas = avatarCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const { upperBody, rightHand, leftHand, face } = avatarPose;
+        if (!upperBody && !rightHand && !leftHand && !face) return;
+
+        const project = (lm: { x: number; y: number }) => ({
+            x: lm.x * canvas.width,
+            y: lm.y * canvas.height,
+        });
+
+        // Draw upper body stick figure (shoulders, hips, arms)
+        if (upperBody && upperBody.length >= 8) {
+            ctx.strokeStyle = '#4fd1ff';
+            ctx.lineWidth = 4;
+
+            const [lShoulder, rShoulder, lHip, rHip, lElbow, rElbow, lWrist, rWrist] =
+                upperBody;
+
+            const p = (lm: PoseLandmark) => project(lm);
+
+            ctx.beginPath();
+            // shoulders
+            const psL = p(lShoulder);
+            const psR = p(rShoulder);
+            ctx.moveTo(psL.x, psL.y);
+            ctx.lineTo(psR.x, psR.y);
+            // spine
+            const phL = p(lHip);
+            const phR = p(rHip);
+            const spineMidX = (psL.x + psR.x) / 2;
+            const spineMidY = (psL.y + psR.y) / 2;
+            const hipMidX = (phL.x + phR.x) / 2;
+            const hipMidY = (phL.y + phR.y) / 2;
+            ctx.moveTo(spineMidX, spineMidY);
+            ctx.lineTo(hipMidX, hipMidY);
+            // left arm
+            const peL = p(lElbow);
+            const pwL = p(lWrist);
+            ctx.moveTo(psL.x, psL.y);
+            ctx.lineTo(peL.x, peL.y);
+            ctx.lineTo(pwL.x, pwL.y);
+            // right arm
+            const peR = p(rElbow);
+            const pwR = p(rWrist);
+            ctx.moveTo(psR.x, psR.y);
+            ctx.lineTo(peR.x, peR.y);
+            ctx.lineTo(pwR.x, pwR.y);
+
+            ctx.stroke();
+        }
+
+        // Simple face marker (head circle at nose if available)
+        if (face && face.length > 0) {
+            const nose = face[1] ?? face[0];
+            const pN = project(nose);
+            ctx.beginPath();
+            ctx.fillStyle = '#ffcc00';
+            ctx.arc(pN.x, pN.y, 16, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        const drawHand = (hand: LandmarkList, color: string) => {
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 3;
+            hand.forEach((lm) => {
+                const { x, y } = project(lm);
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        };
+
+        if (rightHand) drawHand(rightHand, '#00ff88');
+        if (leftHand) drawHand(leftHand, '#ff4fa3');
+    }, [avatarPose]);
 
     useEffect(() => {
         return () => stopCamera();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     return (
@@ -329,22 +471,35 @@ function App() {
                                 </div>
                             )}
 
-                            <div className={`camera-shell ${stream ? 'is-active' : ''}`}>
-                                {!stream && <div className="camera-placeholder">Camera preview</div>}
-                                {/* Hidden video for MediaPipe */}
-                                <video
-                                    ref={videoRef}
-                                    style={{ display: 'none' }}
-                                    playsInline
-                                    muted
-                                />
-                                {/* Canvas for drawing hand landmarks */}
-                                <canvas
-                                    ref={canvasRef}
-                                    className="hand-tracking-canvas"
-                                    width={1280}
-                                    height={720}
-                                />
+                            {/* VTuber-style two-screen layout */}
+                            <div className={`camera-shell vtuber-shell ${stream ? 'is-active' : ''}`}>
+                                {/* LEFT: real camera + landmarks */}
+                                <div className="vtuber-panel real-panel">
+                                    {!stream && <div className="camera-placeholder">Camera preview</div>}
+                                    <video
+                                        ref={videoRef}
+                                        style={{ display: 'none' }}
+                                        playsInline
+                                        muted
+                                    />
+                                    <canvas
+                                        ref={canvasRef}
+                                        className="hand-tracking-canvas"
+                                        width={1280}
+                                        height={720}
+                                    />
+                                </div>
+
+                                {/* RIGHT: ragdoll / avatar mirror */}
+                                <div className="vtuber-panel avatar-panel">
+                                    <div className="avatar-title">Avatar Mirror</div>
+                                    <canvas
+                                        ref={avatarCanvasRef}
+                                        className="avatar-canvas"
+                                        width={640}
+                                        height={360}
+                                    />
+                                </div>
                             </div>
                         </div>
 
