@@ -21,7 +21,12 @@ function App() {
                 throw new Error('getUserMedia is not supported in this browser.')
             }
             const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user' },
+                video: {
+                    facingMode: 'user',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 30, max: 30 },
+                },
                 audio: false,
             })
             setStream(mediaStream)
@@ -135,6 +140,8 @@ function App() {
                             <div className="panel-footer">
                                 <div className="camera-controls">
                                     <button
+
+
                                         className="feature-button"
                                         onClick={stream ? stopCamera : startCamera}
                                     >
@@ -148,7 +155,12 @@ function App() {
 
                             <div className={`camera-shell ${stream ? 'is-active' : ''}`}>
                                 {!stream && <div className="camera-placeholder">Camera preview</div>}
-                                <video ref={videoRef} className={`camera-preview ${stream ? 'is-active' : ''}`} playsInline muted />
+                                <video
+                                    ref={videoRef}
+                                    className={`camera-preview ${stream ? 'is-active' : ''}`}
+                                    playsInline
+                                    muted
+                                />
                             </div>
                         </div>
 

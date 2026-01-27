@@ -46,7 +46,7 @@ body {
 .header {
     position: relative;
     z-index: 1;
-    background: linear-gradient(90deg, #d4145a 0%, #fbb03b 60%, #fddc8d 100%);
+    background: transparent;
     padding: clamp(2rem, 3vw, 3rem) clamp(2rem, 4vw, 4rem);
     text-align: left;
     box-shadow: 0 0px 0px rgba(212, 20, 90, 0.25);
