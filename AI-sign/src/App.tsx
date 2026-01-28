@@ -2,7 +2,7 @@
 import Webcam from "react-webcam";
 import { FilesetResolver, HandLandmarker, type HandLandmarkerResult } from "@mediapipe/tasks-vision";
 import { Link } from "react-router-dom";
-
+import "./App.css";
 // --- 1. ĐỊNH NGHĨA KIỂU DỮ LIỆU ---
 interface Landmark {
   x: number;
@@ -391,57 +391,86 @@ const DeepMotionDemo: React.FC = () => {
     }
   }, [isAiLoaded, samples]);
 
-  return (
-    <div style={{ position: "relative", width: "640px", margin: "0 auto", textAlign: "center" }}>
-      <div style={{ position: "fixed", top: "20px", left: "20px", zIndex: 100 }}>
-        <Link to="/" style={{ marginRight: "15px", textDecoration: "none", color: "#666" }}>Home</Link>
-        <Link to="/admin/extraction" style={{ textDecoration: "none", color: "#007bff", fontWeight: "bold" }}>Admin Data</Link>
-      </div>
-      <h1>AI-ComSign (Strict Mode)</h1>
-      <div style={{ minHeight: "60px", marginBottom: "10px" }}>
-        {prediction ? (
-          <div>
-            <h2 style={{ color: "#007bff", fontSize: "50px", margin: 0, fontWeight: "bold" }}>{prediction}</h2>
-            <div style={{ marginTop: "5px" }}>
-              <small style={{ color: "#28a745", fontWeight: "bold" }}>
-                Độ chính xác: {confidence}%
-              </small>
-              <small style={{ color: "#888", marginLeft: "15px" }}>
-                Độ lệch: {debugDist}
-              </small>
+    return (
+        <div className="app-root">
+            <div className="app-shell">
+                <header className="app-header">
+                    <h1 className="app-title">AI-ComSign <span className="mode-tag">(Strict Mode)</span></h1>
+                    <p className="app-subtitle">
+                        Real‑time hand sign classifier using MediaPipe. Show a sign to see the prediction.
+                    </p>
+                </header>
+
+                <section className="status-section" aria-live="polite">
+                    {prediction ? (
+                        <div className="status-card">
+                            <div className="status-letter">{prediction}</div>
+                            <div className="status-metrics">
+                                <span className="metric metric-accuracy">
+                                    Độ chính xác: <strong>{confidence}%</strong>
+                                </span>
+                                <span className="metric metric-distance">
+                                    Độ lệch: <strong>{debugDist}</strong>
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="status-empty">
+                            <p>Hãy thực hiện hành động với tay trong khung hình.</p>
+                            <small>Độ lệch hiện tại: {debugDist} (Yêu cầu &lt; 4.5)</small>
+                        </div>
+                    )}
+                </section>
+
+                <section className="controls-section">
+                    <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => trainSign("Tùy chỉnh")}
+                    >
+                        <span className="button-emoji">✋</span>
+                        <span>Dạy thêm dáng mới</span>
+                    </button>
+                    {!isAiLoaded && <p className="loading-text">Đang tải mô hình AI...</p>}
+                </section>
+
+                <section className="video-section">
+                    <div className="video-frame">
+                        <Webcam
+                            ref={webcamRef}
+                            mirrored
+                            className="video-element"
+                        />
+                        <canvas
+                            ref={canvasRef}
+                            className="overlay-canvas"
+                        />
+                        <div className="video-overlay-top">
+                            <span className="overlay-chip">
+                                {stablePrediction
+                                    ? `Phát hiện: ${stablePrediction.toUpperCase()}`
+                                    : "Đang chờ nhận diện tay..."}
+                            </span>
+                            {prediction && (
+                                <span className="overlay-chip secondary">
+                                    Confidence: {confidence}%
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="video-footer">
+                        <span className={`model-badge ${isAiLoaded ? "ready" : "loading"}`}>
+                            {isAiLoaded ? "AI model loaded" : "Loading AI model..."}
+                        </span>
+                        <span className="hint-text">
+                            Mẹo: Giữ tay ổn định trong vài khung hình để có kết quả chính xác hơn.
+                        </span>
+                    </div>
+                </section>
             </div>
-          </div>
-        ) : (
-          <div>
-            <p style={{ color: "#ccc", margin: 0 }}>Hãy thực hiện hành động...</p>
-            <small style={{ color: "#888" }}>Độ lệch: {debugDist} (Yêu cầu &lt; 4.5)</small>
-          </div>
-        )}
-      </div>
-      <div style={{ marginBottom: "15px" }}>
-        <button 
-            onClick={() => trainSign("Tùy chỉnh")} 
-            style={{ padding: "10px 20px", background: "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}>
-            ✋ Dạy thêm
-        </button>
-      </div>
-      {!isAiLoaded && <p>Đang tải AI...</p>}
-      <div style={{ position: "relative" }}>
-        <Webcam
-          ref={webcamRef}
-          mirrored={true} 
-          style={{ position: "absolute", left: 0, right: 0, margin: "auto", zIndex: 9, width: 640, height: 480 }}
-        />
-        <canvas
-          ref={canvasRef}
-          style={{ 
-            position: "absolute", left: 0, right: 0, margin: "auto", zIndex: 10, width: 640, height: 480,
-            transform: "scaleX(-1)" 
-          }}
-        />
-      </div>
-    </div>
-  );
+        </div>
+    );
 };
 
 
