@@ -94,16 +94,22 @@ const distance3D = (p1: Landmark, p2: Landmark) => {
   );
 };
 
-// Hàm chuẩn hóa
+// Hàm chuẩn hóa cải tiến - Bao gồm cả trục Z
 const normalizeLandmarks = (landmarks: Landmark[]): Landmark[] => {
   if (!landmarks || landmarks.length === 0) return [];
   const wrist = landmarks[0];
+
+  // Center around wrist
   const centered = landmarks.map(p => ({
     x: p.x - wrist.x,
     y: p.y - wrist.y,
     z: p.z - wrist.z
   }));
-  const maxDist = Math.max(...centered.map(p => Math.sqrt(p.x**2 + p.y**2)));
+
+  // Calculate max distance in 3D space for better normalization
+  const maxDist = Math.max(...centered.map(p => Math.sqrt(p.x**2 + p.y**2 + p.z**2)));
+
+  // Normalize by max distance
   return centered.map(p => ({
     x: p.x / (maxDist || 1), 
     y: p.y / (maxDist || 1),
@@ -115,11 +121,24 @@ const calculateDistance = (userLandmarks: Landmark[], sampleLandmarks: Landmark[
   const normUser = normalizeLandmarks(userLandmarks);
   const normSample = normalizeLandmarks(sampleLandmarks);
 
+  // Trọng số cho từng landmark - fingertips và MCP joints quan trọng hơn
+  const weights = [
+    1.0,  // 0: Wrist
+    0.8, 0.8, 0.8, 1.2,  // 1-4: Thumb (tip gets more weight)
+    1.0, 0.9, 0.9, 1.2,  // 5-8: Index finger
+    1.0, 0.9, 0.9, 1.2,  // 9-12: Middle finger
+    1.0, 0.9, 0.9, 1.2,  // 13-16: Ring finger
+    1.0, 0.9, 0.9, 1.2   // 17-20: Pinky finger
+  ];
+
+  // Tính khoảng cách trực tiếp với trọng số
   let distDirect = 0;
   for (let i = 0; i < normUser.length; i++) {
     const dx = normUser[i].x - normSample[i].x;
     const dy = normUser[i].y - normSample[i].y;
-    distDirect += Math.sqrt(dx * dx + dy * dy);
+    const dz = normUser[i].z - normSample[i].z;
+    const weight = weights[i] || 1.0;
+    distDirect += weight * Math.sqrt(dx * dx + dy * dy + dz * dz);
   }
 
   // So sánh Mirror (lật ngược) để dùng được cả 2 tay
@@ -127,7 +146,9 @@ const calculateDistance = (userLandmarks: Landmark[], sampleLandmarks: Landmark[
   for (let i = 0; i < normUser.length; i++) {
     const dx = (-normUser[i].x) - normSample[i].x;
     const dy = normUser[i].y - normSample[i].y;
-    distMirrored += Math.sqrt(dx * dx + dy * dy);
+    const dz = normUser[i].z - normSample[i].z;
+    const weight = weights[i] || 1.0;
+    distMirrored += weight * Math.sqrt(dx * dx + dy * dy + dz * dz);
   }
 
   return Math.min(distDirect, distMirrored);
@@ -146,21 +167,51 @@ const getFingerLinearity = (landmarks: Landmark[], mcpIdx: number, tipIdx: numbe
   return straightLine / (totalBoneLength || 1);
 };
 
-// Kiểm tra xem ngón cái có gập vào không
+// Tính góc giữa 3 điểm (trả về radian)
+const calculateAngle = (p1: Landmark, p2: Landmark, p3: Landmark): number => {
+  const v1 = { x: p1.x - p2.x, y: p1.y - p2.y, z: p1.z - p2.z };
+  const v2 = { x: p3.x - p2.x, y: p3.y - p2.y, z: p3.z - p2.z };
+
+  const dotProduct = v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+  const mag1 = Math.sqrt(v1.x**2 + v1.y**2 + v1.z**2);
+  const mag2 = Math.sqrt(v2.x**2 + v2.y**2 + v2.z**2);
+
+  const cosAngle = dotProduct / (mag1 * mag2 || 1);
+  return Math.acos(Math.max(-1, Math.min(1, cosAngle)));
+};
+
+// Tính góc gập của ngón tay tại PIP joint
+const getFingerCurlAngle = (landmarks: Landmark[], mcpIdx: number, tipIdx: number): number => {
+  const mcp = landmarks[mcpIdx];
+  const pip = landmarks[mcpIdx + 1];
+  const dip = landmarks[mcpIdx + 2];
+
+  const angle = calculateAngle(mcp, pip, dip);
+  return angle * (180 / Math.PI); // Chuyển sang độ
+};
+
+// Kiểm tra xem ngón cái có gập vào không - Cải tiến
 const isThumbFolded = (landmarks: Landmark[]): boolean => {
   const tip = landmarks[4];
-  const mcp = landmarks[2]; // Gốc ngón cái
-  const pinkyBase = landmarks[17]; // Gốc ngón út
-  
-  // Cách 1: So sánh khoảng cách đỉnh ngón cái tới gốc ngón út
-  const distToPinky = distance3D(tip, pinkyBase);
-  
-  // Cách 2: So sánh vị trí ngang của đỉnh ngón cái so với gốc ngón trỏ
+  const ip = landmarks[3];   // Khớp giữa ngón cái
+  const mcp = landmarks[2];  // Gốc ngón cái
+  const wrist = landmarks[0];
   const indexMcp = landmarks[5];
+  const pinkyBase = landmarks[17];
+
+  // Phương pháp 1: Khoảng cách từ tip đến lòng bàn tay
+  const distToPinky = distance3D(tip, pinkyBase);
   const distToIndex = distance3D(tip, indexMcp);
 
-  // Nếu ngón cái gần ngón út hoặc gần gốc ngón trỏ -> Coi như gập
-  return distToPinky < 0.25 || distToIndex < 0.1; 
+  // Phương pháp 2: Góc gập của ngón cái
+  const thumbAngle = calculateAngle(mcp, ip, tip);
+  const thumbAngleDeg = thumbAngle * (180 / Math.PI);
+
+  // Phương pháp 3: So sánh độ sâu Z của tip vs wrist
+  const zDiff = Math.abs(tip.z - wrist.z);
+
+  // Ngón cái gập nếu: gần lòng bàn tay HOẶC góc gập nhỏ HOẶC độ sâu Z nhỏ
+  return (distToPinky < 0.15 || distToIndex < 0.08 || thumbAngleDeg < 140 || zDiff < 0.015);
 };
 
 const DeepMotionDemo: React.FC = () => {
@@ -172,7 +223,12 @@ const DeepMotionDemo: React.FC = () => {
   const [samples, setSamples] = useState<SignSample[]>(PRE_TRAINED_DATA); 
   const [prediction, setPrediction] = useState<string>(""); 
   const [currentLandmarks, setCurrentLandmarks] = useState<Landmark[] | null>(null); 
-  const [debugDist, setDebugDist] = useState<number>(0); 
+  const [debugDist, setDebugDist] = useState<number>(0);
+  const [confidence, setConfidence] = useState<number>(0);
+
+  // Temporal smoothing - Lưu lại các prediction gần đây
+  const predictionHistoryRef = useRef<string[]>([]);
+  const [stablePrediction, setStablePrediction] = useState<string>("");
 
   useEffect(() => {
     const loadHandLandmarker = async () => {
@@ -186,6 +242,9 @@ const DeepMotionDemo: React.FC = () => {
         },
         runningMode: "VIDEO",
         numHands: 2,
+        minHandDetectionConfidence: 0.5,
+        minHandPresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
       });
       setHandLandmarker(landmarker);
       setIsAiLoaded(true);
@@ -324,11 +383,47 @@ const DeepMotionDemo: React.FC = () => {
 
           setDebugDist(Number(minDistance.toFixed(2)));
 
-          // Ngưỡng sai số (Threshold): 5.0
-          if (minDistance < 5.0) { 
-            setPrediction(bestMatch); 
+          // Ngưỡng sai số (Threshold): 4.5 (Giảm từ 5.0 để chặt chẽ hơn)
+          const THRESHOLD = 4.5;
+
+          if (minDistance < THRESHOLD) {
+            // Temporal smoothing - Chỉ chấp nhận prediction nếu xuất hiện ổn định
+            predictionHistoryRef.current.push(bestMatch);
+            if (predictionHistoryRef.current.length > 5) {
+              predictionHistoryRef.current.shift();
+            }
+
+            // Đếm số lần xuất hiện của mỗi prediction
+            const counts: Record<string, number> = {};
+            predictionHistoryRef.current.forEach(p => {
+              counts[p] = (counts[p] || 0) + 1;
+            });
+
+            // Lấy prediction xuất hiện nhiều nhất
+            let maxCount = 0;
+            let stableMatch = "";
+            Object.entries(counts).forEach(([sign, count]) => {
+              if (count > maxCount) {
+                maxCount = count;
+                stableMatch = sign;
+              }
+            });
+
+            // Chỉ hiển thị nếu xuất hiện ít nhất 3/5 lần gần đây
+            if (maxCount >= 3) {
+              setPrediction(stableMatch);
+              setStablePrediction(stableMatch);
+              // Tính confidence dựa trên độ ổn định và khoảng cách
+              const confidenceScore = Math.round((1 - minDistance / THRESHOLD) * (maxCount / 5) * 100);
+              setConfidence(Math.min(100, Math.max(0, confidenceScore)));
+            } else {
+              setPrediction("");
+              setConfidence(0);
+            }
           } else {
-            setPrediction(""); 
+            setPrediction("");
+            setConfidence(0);
+            predictionHistoryRef.current = [];
           }
         }
       } else if (canvasCtx) {
@@ -350,11 +445,21 @@ const DeepMotionDemo: React.FC = () => {
       <h1>AI-ComSign (Strict Mode)</h1>
       <div style={{ minHeight: "60px", marginBottom: "10px" }}>
         {prediction ? (
-          <h2 style={{ color: "#007bff", fontSize: "50px", margin: 0, fontWeight: "bold" }}>{prediction}</h2>
+          <div>
+            <h2 style={{ color: "#007bff", fontSize: "50px", margin: 0, fontWeight: "bold" }}>{prediction}</h2>
+            <div style={{ marginTop: "5px" }}>
+              <small style={{ color: "#28a745", fontWeight: "bold" }}>
+                Độ chính xác: {confidence}%
+              </small>
+              <small style={{ color: "#888", marginLeft: "15px" }}>
+                Độ lệch: {debugDist}
+              </small>
+            </div>
+          </div>
         ) : (
           <div>
             <p style={{ color: "#ccc", margin: 0 }}>Hãy thực hiện hành động...</p>
-            <small style={{ color: "#888" }}>Độ lệch: {debugDist} (Yêu cầu &lt; 5.0)</small>
+            <small style={{ color: "#888" }}>Độ lệch: {debugDist} (Yêu cầu &lt; 4.5)</small>
           </div>
         )}
       </div>
