@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
 import { FilesetResolver, HandLandmarker, type HandLandmarkerResult } from "@mediapipe/tasks-vision";
+import { Link } from "react-router-dom";
 
 // --- 1. ĐỊNH NGHĨA KIỂU DỮ LIỆU ---
 interface Landmark {
@@ -15,74 +16,6 @@ interface SignSample {
   signName: string;
   landmarks: Landmark[];
 }
-
-// --- 2. DỮ LIỆU MẪU (A, B, C, D) ---
-const PRE_TRAINED_DATA: SignSample[] = [
-  {
-    "signName": "a",
-    "landmarks": [
-      { "x": 0.373897, "y": 0.489435, "z": -1.03e-7 }, { "x": 0.396066, "y": 0.477324, "z": -0.00487 },
-      { "x": 0.409668, "y": 0.444840, "z": -0.00644 }, { "x": 0.418581, "y": 0.411878, "z": -0.00889 },
-      { "x": 0.428908, "y": 0.393802, "z": -0.01027 }, { "x": 0.406105, "y": 0.422958, "z": 0.00238 },
-      { "x": 0.408848, "y": 0.397502, "z": -0.00777 }, { "x": 0.402909, "y": 0.420322, "z": -0.01430 },
-      { "x": 0.397101, "y": 0.439514, "z": -0.01676 }, { "x": 0.394295, "y": 0.421061, "z": 0.00163 },
-      { "x": 0.396876, "y": 0.397301, "z": -0.00971 }, { "x": 0.392576, "y": 0.427717, "z": -0.01400 },
-      { "x": 0.388647, "y": 0.448180, "z": -0.01444 }, { "x": 0.383114, "y": 0.421530, "z": -0.00092 },
-      { "x": 0.386009, "y": 0.403764, "z": -0.01247 }, { "x": 0.383949, "y": 0.432913, "z": -0.01232 },
-      { "x": 0.381335, "y": 0.451454, "z": -0.00899 }, { "x": 0.371624, "y": 0.423234, "z": -0.00394 },
-      { "x": 0.375402, "y": 0.410949, "z": -0.01179 }, { "x": 0.375791, "y": 0.430904, "z": -0.01165 },
-      { "x": 0.375371, "y": 0.445445, "z": -0.00944 }
-    ]
-  },
-  {
-    "signName": "b",
-    "landmarks": [
-      { "x": 0.387869, "y": 0.540448, "z": 8.07e-8 }, { "x": 0.402559, "y": 0.520787, "z": -0.00886 },
-      { "x": 0.409980, "y": 0.492708, "z": -0.01302 }, { "x": 0.395766, "y": 0.472613, "z": -0.01671 },
-      { "x": 0.382245, "y": 0.471016, "z": -0.02037 }, { "x": 0.405688, "y": 0.442494, "z": -0.00603 },
-      { "x": 0.406307, "y": 0.401640, "z": -0.01150 }, { "x": 0.406205, "y": 0.377497, "z": -0.01648 },
-      { "x": 0.406012, "y": 0.355883, "z": -0.02028 }, { "x": 0.394151, "y": 0.437752, "z": -0.00669 },
-      { "x": 0.395600, "y": 0.393651, "z": -0.01067 }, { "x": 0.396563, "y": 0.366663, "z": -0.01495 },
-      { "x": 0.397557, "y": 0.344673, "z": -0.01850 }, { "x": 0.384058, "y": 0.441244, "z": -0.00863 },
-      { "x": 0.384941, "y": 0.402350, "z": -0.01202 }, { "x": 0.386573, "y": 0.377910, "z": -0.01552 },
-      { "x": 0.388165, "y": 0.357432, "z": -0.01827 }, { "x": 0.373634, "y": 0.452067, "z": -0.01175 },
-      { "x": 0.374089, "y": 0.421625, "z": -0.01405 }, { "x": 0.375491, "y": 0.402218, "z": -0.01504 },
-      { "x": 0.376911, "y": 0.384722, "z": -0.01615 }
-    ]
-  },
-  {
-    "signName": "c",
-    "landmarks": [
-      { "x": 0.381125, "y": 0.528297, "z": 5.30e-8 }, { "x": 0.399768, "y": 0.517270, "z": -0.00415 },
-      { "x": 0.417553, "y": 0.497731, "z": -0.00548 }, { "x": 0.431175, "y": 0.486549, "z": -0.00754 },
-      { "x": 0.437214, "y": 0.467627, "z": -0.00934 }, { "x": 0.407824, "y": 0.435492, "z": 0.00166 },
-      { "x": 0.413865, "y": 0.399594, "z": -0.00395 }, { "x": 0.420623, "y": 0.393325, "z": -0.00914 },
-      { "x": 0.427399, "y": 0.397338, "z": -0.01217 }, { "x": 0.399214, "y": 0.431649, "z": -0.00041 },
-      { "x": 0.404037, "y": 0.393562, "z": -0.00561 }, { "x": 0.412117, "y": 0.387847, "z": -0.01033 },
-      { "x": 0.420558, "y": 0.395884, "z": -0.01340 }, { "x": 0.390607, "y": 0.433901, "z": -0.00396 },
-      { "x": 0.394597, "y": 0.396522, "z": -0.00950 }, { "x": 0.402559, "y": 0.386975, "z": -0.01318 },
-      { "x": 0.410793, "y": 0.392843, "z": -0.01510 }, { "x": 0.381442, "y": 0.441068, "z": -0.00828 },
-      { "x": 0.385395, "y": 0.410247, "z": -0.01311 }, { "x": 0.392342, "y": 0.394586, "z": -0.01582 },
-      { "x": 0.400032, "y": 0.391087, "z": -0.01732 }
-    ]
-  },
-  {
-    "signName": "d",
-    "landmarks": [
-      { "x": 0.379978, "y": 0.561081, "z": 4.20e-8 }, { "x": 0.400202, "y": 0.536153, "z": 0.00090 },
-      { "x": 0.410219, "y": 0.511661, "z": -0.00330 }, { "x": 0.419273, "y": 0.498829, "z": -0.00993 },
-      { "x": 0.422152, "y": 0.488681, "z": -0.01643 }, { "x": 0.389403, "y": 0.460312, "z": -0.00476 },
-      { "x": 0.391128, "y": 0.416847, "z": -0.01328 }, { "x": 0.392080, "y": 0.392980, "z": -0.01971 },
-      { "x": 0.390091, "y": 0.372787, "z": -0.02424 }, { "x": 0.381285, "y": 0.465909, "z": -0.01136 },
-      { "x": 0.399273, "y": 0.445730, "z": -0.02380 }, { "x": 0.414172, "y": 0.465487, "z": -0.02963 },
-      { "x": 0.420239, "y": 0.485303, "z": -0.03188 }, { "x": 0.377245, "y": 0.478877, "z": -0.01803 },
-      { "x": 0.395843, "y": 0.457274, "z": -0.02860 }, { "x": 0.411426, "y": 0.473365, "z": -0.03023 },
-      { "x": 0.418961, "y": 0.490497, "z": -0.02936 }, { "x": 0.377282, "y": 0.495652, "z": -0.02480 },
-      { "x": 0.392353, "y": 0.478459, "z": -0.03172 }, { "x": 0.405910, "y": 0.482689, "z": -0.03237 },
-      { "x": 0.414997, "y": 0.490366, "z": -0.03172 }
-    ]
-  }
-];
 
 // --- 3. CÁC HÀM TOÁN HỌC BỔ TRỢ ---
 // Tính khoảng cách giữa 2 điểm 3D
@@ -220,7 +153,7 @@ const DeepMotionDemo: React.FC = () => {
   const [isAiLoaded, setIsAiLoaded] = useState<boolean>(false);
   const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
 
-  const [samples, setSamples] = useState<SignSample[]>(PRE_TRAINED_DATA); 
+  const [samples, setSamples] = useState<SignSample[]>([]); 
   const [prediction, setPrediction] = useState<string>(""); 
   const [currentLandmarks, setCurrentLandmarks] = useState<Landmark[] | null>(null); 
   const [debugDist, setDebugDist] = useState<number>(0);
@@ -250,6 +183,24 @@ const DeepMotionDemo: React.FC = () => {
       setIsAiLoaded(true);
     };
     loadHandLandmarker();
+
+    // Fetch data from DB
+    const fetchSignData = async () => {
+        try {
+            const response = await fetch('http://localhost:5197/api/sign');
+            if (response.ok) {
+                const data: SignSample[] = await response.json();
+                console.log("Fetched signs from DB:", data);
+                // Use fetched data directly
+                setSamples(data); 
+            } else {
+                console.error("Failed to fetch signs from DB");
+            }
+        } catch (error) {
+            console.error("Error fetching signs:", error);
+        }
+    };
+    fetchSignData();
   }, []);
 
   const drawHandSkeleton = (canvasCtx: CanvasRenderingContext2D, landmarks: Landmark[][]) => {
@@ -442,6 +393,10 @@ const DeepMotionDemo: React.FC = () => {
 
   return (
     <div style={{ position: "relative", width: "640px", margin: "0 auto", textAlign: "center" }}>
+      <div style={{ position: "fixed", top: "20px", left: "20px", zIndex: 100 }}>
+        <Link to="/" style={{ marginRight: "15px", textDecoration: "none", color: "#666" }}>Home</Link>
+        <Link to="/admin/extraction" style={{ textDecoration: "none", color: "#007bff", fontWeight: "bold" }}>Admin Data</Link>
+      </div>
       <h1>AI-ComSign (Strict Mode)</h1>
       <div style={{ minHeight: "60px", marginBottom: "10px" }}>
         {prediction ? (

@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './index.css';
 import App from './App';
 import HomePage from './HomePage';
+import AdminExtraction from './AdminExtraction';
 
 createRoot(document.getElementById('root') as HTMLElement).render(
     <StrictMode>
@@ -11,6 +12,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
             <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/translator" element={<App />} />
+                <Route path="/admin/extraction" element={<AdminExtraction />} />
             </Routes>
         </BrowserRouter>
     </StrictMode>

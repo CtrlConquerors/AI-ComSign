@@ -14,6 +14,7 @@ function HomePage() {
                     <a href="#learning-path">Learn</a>
                     <a href="#practice">Practice</a>
                     <a href="#features">Features</a>
+                    <Link to="/admin/extraction">Data Admin</Link>
                 </nav>
                 <Link className="nav-cta" to="/translator">Open translator</Link>
             </header>

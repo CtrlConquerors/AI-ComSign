@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FilesetResolver, HandLandmarker, type HandLandmarkerResult } from "@mediapipe/tasks-vision";
+import { Link } from "react-router-dom";
 
 // --- 1. ĐỊNH NGHĨA KIỂU DỮ LIỆU (Giống hệt App.tsx) ---
 interface Landmark {
@@ -150,8 +151,42 @@ const AdminExtraction: React.FC = () => {
     downloadAnchorNode.remove();
   };
 
+  // 6. Save to DB
+  const saveToDb = async () => {
+    if (extractedData.length === 0) return;
+    
+    setIsProcessing(true);
+    let successCount = 0;
+    
+    for (const sample of extractedData) {
+        try {
+            const response = await fetch('http://localhost:5197/api/sign', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(sample),
+            });
+            
+            if (response.ok) {
+                successCount++;
+                addLog(`✅ Saved to DB: ${sample.signName}`);
+            } else {
+                const errText = await response.text();
+                addLog(`❌ Failed to save ${sample.signName}: ${response.status} - ${errText}`);
+            }
+        } catch (error) {
+            addLog(`❌ Error saving ${sample.signName}: ${error}`);
+        }
+    }
+    
+    setIsProcessing(false);
+    addLog(`🎉 Finished saving to DB. Success: ${successCount}/${extractedData.length}`);
+  };
+
   return (
     <div style={{ padding: "20px", fontFamily: "Arial", maxWidth: "800px", margin: "0 auto" }}>
+      <Link to="/" style={{ textDecoration: "none", color: "#007bff", fontWeight: "bold" }}>⬅ Back to Home</Link>
       <h1>🛠️ Admin Data Extractor (TypeScript)</h1>
       <p>Chọn folder chứa video (định dạng .mp4, .mov). Tool sẽ tự động lấy mẫu xương và đặt tên Label.</p>
       
@@ -172,14 +207,25 @@ const AdminExtraction: React.FC = () => {
       </div>
 
       {extractedData.length > 0 && !isProcessing && (
-        <div style={{ marginTop: "20px", textAlign: "center" }}>
-          <h3 style={{color: "green"}}>Thành công: {extractedData.length} mẫu dữ liệu</h3>
-          <p>Copy nội dung file JSON này và dán vào biến <code>PRE_TRAINED_DATA</code> trong <code>App.tsx</code></p>
+        <div style={{ marginTop: "20px", textAlign: "center", display: "flex", gap: "10px", justifyContent: "center" }}>
+          <h3 style={{color: "green", width: "100%"}}>Thành công: {extractedData.length} mẫu dữ liệu</h3>
+        </div>
+      )}
+      
+      {extractedData.length > 0 && !isProcessing && (
+         <div style={{ textAlign: "center", marginTop: "10px" }}>
+          <p>Data is ready. Click "Save to DB" to update the system.</p>
           <button 
             onClick={downloadJSON}
-            style={{ padding: "15px 30px", fontSize: "16px", background: "#007bff", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}
+            style={{ padding: "15px 30px", fontSize: "16px", background: "#007bff", color: "white", border: "none", borderRadius: "5px", cursor: "pointer", marginRight: "10px" }}
           >
             💾 Tải File JSON
+          </button>
+          <button 
+            onClick={saveToDb}
+            style={{ padding: "15px 30px", fontSize: "16px", background: "#28a745", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" }}
+          >
+            ☁️ Lưu vào DB
           </button>
         </div>
       )}
