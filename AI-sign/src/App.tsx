@@ -527,7 +527,6 @@ const DeepMotionDemo: React.FC = () => {
               <>
                 <Webcam
                   ref={webcamRef}
-                  mirrored
                   className="video-element"
                 />
                 <canvas
