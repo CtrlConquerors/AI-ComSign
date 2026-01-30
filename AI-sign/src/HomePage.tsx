@@ -116,6 +116,20 @@ function HomePage() {
                 </div>
             </section>
 
+            {/* Wave divider between hero and sections */}
+            <div className="wave-separator">
+                <svg
+                    className="wave-svg"
+                    viewBox="0 0 1440 160"
+                    preserveAspectRatio="none"
+                >
+                    <path
+                        d="M0,96 C240,160 480,0 720,64 C960,128 1200,64 1440,96 L1440,160 L0,160 Z"
+                        fill="black" 
+                    />
+                </svg>
+            </div>
+
             {/* Why / Features placeholder */}
             <section className="section" id="features">
                 {/* feature content here */}
