@@ -7,7 +7,7 @@ function HomePage() {
             {/* Top nav */}
             <header className="top-nav">
                 <Link to="/" className="nav-logo">
-                    <span className="nav-logo-mark">🤟</span>
+                    <span className="nav-logo-mark" />
                     <span className="nav-logo-text">SignBridge</span>
                 </Link>
                 <nav className="nav-links">
@@ -16,7 +16,9 @@ function HomePage() {
                     <a href="#features">Features</a>
                     <Link to="/admin/extraction">Data Admin</Link>
                 </nav>
-                <Link className="nav-cta" to="/translator">Open translator</Link>
+                <Link className="nav-cta" to="/translator">
+                    Open translator
+                </Link>
             </header>
 
             {/* Hero */}
@@ -37,8 +39,12 @@ function HomePage() {
                         </p>
 
                         <div className="hero-cta">
-                            <Link className="pill-btn" to="/translator">Start free session</Link>
-                            <a className="ghost-btn" href="#learning-path">View learning path</a>
+                            <Link className="pill-btn" to="/translator">
+                                Start free session
+                            </Link>
+                            <a className="ghost-btn" href="#learning-path">
+                                View learning path
+                            </a>
                         </div>
 
                         <div className="hero-metrics">
@@ -70,9 +76,7 @@ function HomePage() {
                                         <span className="screen-pill">Sign → Text</span>
                                     </div>
                                     <div className="screen-content">
-                                        <p className="screen-text">
-                                            “Can we meet tomorrow at 3 PM?”
-                                        </p>
+                                        <p className="screen-text">“Can we meet tomorrow at 3 PM?”</p>
                                         <div className="screen-sign-row">
                                             <span className="screen-sign-hand">✋</span>
                                             <span className="screen-sign-hand">👌</span>
@@ -105,24 +109,24 @@ function HomePage() {
                                     <span className="streak-fire">🔥</span>
                                     <span className="streak-count">7 days in a row</span>
                                 </div>
-                                <p className="showcase-sub">
-                                    Stay consistent with bite‑sized drills.
-                                </p>
+                                <p className="showcase-sub">Stay consistent with bite‑sized drills.</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Why */}
+            {/* Why / Features placeholder */}
             <section className="section" id="features">
-                {/* your existing feature cards */}
+                {/* feature content here */}
             </section>
 
+            {/* Learning path placeholder */}
             <section className="section path-section" id="learning-path">
-                {/* your existing learning-path content */}
+                {/* learning path content here */}
             </section>
 
+            {/* Final CTA */}
             <section className="section narrow final-cta">
                 <div className="section-head">
                     <p className="eyebrow">Ready when you are</p>
@@ -131,8 +135,12 @@ function HomePage() {
                         No account required to try. Turn on your camera, type a phrase, and see it come to life in sign.
                     </p>
                     <div className="hero-cta">
-                        <Link className="pill-btn" to="/translator">Launch Translator</Link>
-                        <a className="ghost-btn" href="#features">Explore features</a>
+                        <Link className="pill-btn" to="/translator">
+                            Launch Translator
+                        </Link>
+                        <a className="ghost-btn" href="#features">
+                            Explore features
+                        </a>
                     </div>
                 </div>
             </section>
