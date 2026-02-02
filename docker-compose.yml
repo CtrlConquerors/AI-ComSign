@@ -1,0 +1,36 @@
+services:
+  # Backend Service (.NET API)
+  ai-be:
+    build:
+      context: ./AI-BE
+      dockerfile: Dockerfile
+    container_name: ai-comsign-backend
+    restart: always
+    environment:
+      # Supabase Connection String (Transaction Pooler port 6543 recommended, or Session port 5432)
+      # Format: "Host=aws-0-us-east-1.pooler.supabase.com;Port=6543;Database=postgres;Username=...;Password=..."
+      ConnectionStrings__DefaultConnection: "${SUPABASE_CONNECTION_STRING}"
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+    networks:
+      - app_network
+
+  # Frontend Service (React + Caddy)
+  ai-sign:
+    build:
+      context: ./AI-sign
+      dockerfile: Dockerfile
+    container_name: ai-comsign-frontend
+    restart: always
+    ports:
+      # Expose container port 80 to host port 3000
+      # Your system-wide cloudflared will point to http://localhost:3000
+      - "3000:80"
+    depends_on:
+      - ai-be
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: bridge
