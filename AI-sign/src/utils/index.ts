@@ -35,7 +35,7 @@ export {
 
 // KNN matching
 export {
-  groupBySgn,
+  groupBySign,
   knnDistance,
   findBestMatch,
   getMatchingStats,

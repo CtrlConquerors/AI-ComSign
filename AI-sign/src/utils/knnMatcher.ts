@@ -8,7 +8,7 @@ import type { Landmark, SignSample, MatchResult } from './types';
 /**
  * Group samples by sign name (case-insensitive)
  */
-export const groupBySgn = (
+export const groupBySign = (
   samples: SignSample[]
 ): Record<string, SignSample[]> => {
   return samples.reduce(
@@ -69,7 +69,7 @@ export const findBestMatch = (
   threshold: number = 4.5
 ): MatchResult | null => {
   // Group samples by sign name
-  const grouped = groupBySgn(samples);
+  const grouped = groupBySign(samples);
 
   // Calculate KNN distance for each sign
   const results: MatchResult[] = Object.entries(grouped)
@@ -126,7 +126,7 @@ export const getMatchingStats = (
   calculateDistance: (a: Landmark[], b: Landmark[]) => number,
   K: number = 3
 ): Array<{ signName: string; avgDistance: number; sampleCount: number }> => {
-  const grouped = groupBySgn(samples);
+  const grouped = groupBySign(samples);
 
   return Object.entries(grouped)
     .map(([signName, signSamples]) => ({

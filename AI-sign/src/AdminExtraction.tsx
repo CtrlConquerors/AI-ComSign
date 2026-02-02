@@ -33,7 +33,23 @@ const AdminExtraction: React.FC = () => {
     // Ref for hidden video
     const videoRef = useRef<HTMLVideoElement>(null);
 
-    // 1. Initialize AI (once)
+    // Helper function to add log messages
+    const addLog = (msg: string) => setLogs((prev) => [...prev, msg]);
+
+    // Fetch dataset statistics from API (used by refresh button and initial load)
+    const fetchStats = async () => {
+        try {
+            const response = await fetch("/api/sign/stats");
+            if (response.ok) {
+                const data: SignStats[] = await response.json();
+                setStats(data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch stats:", error);
+        }
+    };
+
+    // 1. Initialize AI and fetch initial stats (once)
     useEffect(() => {
         const loadHandLandmarker = async () => {
             const vision = await FilesetResolver.forVisionTasks(
@@ -51,28 +67,22 @@ const AdminExtraction: React.FC = () => {
             setHandLandmarker(landmarker);
             addLog("✅ AI Model loaded. Ready to process videos.");
         };
-        loadHandLandmarker();
-    }, []);
 
-    // Fetch stats on mount
-    useEffect(() => {
-        fetchStats();
-    }, []);
-
-    const addLog = (msg: string) => setLogs((prev) => [...prev, msg]);
-
-    // Fetch dataset statistics from API
-    const fetchStats = async () => {
-        try {
-            const response = await fetch("/api/sign/stats");
-            if (response.ok) {
-                const data: SignStats[] = await response.json();
-                setStats(data);
+        const loadInitialStats = async () => {
+            try {
+                const response = await fetch("/api/sign/stats");
+                if (response.ok) {
+                    const data: SignStats[] = await response.json();
+                    setStats(data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch stats:", error);
             }
-        } catch (error) {
-            console.error("Failed to fetch stats:", error);
-        }
-    };
+        };
+
+        loadHandLandmarker();
+        loadInitialStats();
+    }, []);
 
     // Extract sign name from filename
     const cleanSignName = (fileName: string): string => {
@@ -94,89 +104,85 @@ const AdminExtraction: React.FC = () => {
 
     // Process single video - MULTI-FRAME extraction
     const processSingleVideo = async (file: File): Promise<SignSample[]> => {
-        return new Promise(async (resolve) => {
-            if (!videoRef.current || !handLandmarker) {
-                resolve([]);
-                return;
-            }
+        if (!videoRef.current || !handLandmarker) {
+            return [];
+        }
 
-            const results: SignSample[] = [];
-            const url = URL.createObjectURL(file);
-            const video = videoRef.current;
+        const results: SignSample[] = [];
+        const url = URL.createObjectURL(file);
+        const video = videoRef.current;
 
-            video.src = url;
+        video.src = url;
 
-            // Wait for video metadata
-            await new Promise<void>((res) => {
-                video.onloadeddata = () => res();
-                video.onerror = () => {
-                    addLog(`❌ Error reading: ${file.name}`);
-                    res();
-                };
-            });
-
-            if (!video.duration || video.duration === 0) {
-                URL.revokeObjectURL(url);
-                resolve([]);
-                return;
-            }
-
-            const signName = cleanSignName(file.name);
-            let validFrames = 0;
-
-            // Extract at multiple timestamps
-            for (let i = 0; i < config.frameTimestamps.length; i++) {
-                const timestamp = config.frameTimestamps[i];
-                const frameNum = i + 1;
-
-                // Seek to timestamp
-                video.currentTime = video.duration * timestamp;
-                await waitForSeek(video);
-
-                // Small delay for stability
-                await new Promise((r) => setTimeout(r, 50));
-
-                // Detect hand
-                const result: HandLandmarkerResult =
-                    handLandmarker.detectForVideo(video, Date.now());
-
-                if (result.landmarks && result.landmarks.length > 0) {
-                    const rawLandmarks = result.landmarks[0] as unknown as Landmark[];
-
-                    const baseSample: SignSample = {
-                        fileName: `${file.name}_frame${frameNum}`,
-                        signName,
-                        landmarks: cleanLandmarks(rawLandmarks),
-                        frameIndex: i,
-                        sourceFileName: file.name,
-                        isAugmented: false,
-                    };
-
-                    // Generate augmented versions if enabled
-                    if (config.enableAugmentation) {
-                        const augmented = augmentSample(baseSample, config);
-                        results.push(...augmented);
-                        addLog(`  ✅ Frame ${frameNum}: ${augmented.length} samples`);
-                    } else {
-                        results.push(baseSample);
-                        addLog(`  ✅ Frame ${frameNum}: 1 sample`);
-                    }
-                    validFrames++;
-                } else {
-                    addLog(`  ⚠️ Frame ${frameNum}: No hand detected`);
-                }
-            }
-
-            URL.revokeObjectURL(url);
-
-            if (validFrames > 0) {
-                addLog(`✅ ${file.name}: ${results.length} samples from ${validFrames} frames`);
-            } else {
-                addLog(`⚠️ ${file.name}: No valid frames`);
-            }
-
-            resolve(results);
+        // Wait for video metadata
+        await new Promise<void>((res) => {
+            video.onloadeddata = () => res();
+            video.onerror = () => {
+                addLog(`❌ Error reading: ${file.name}`);
+                res();
+            };
         });
+
+        if (!video.duration || video.duration === 0) {
+            URL.revokeObjectURL(url);
+            return [];
+        }
+
+        const signName = cleanSignName(file.name);
+        let validFrames = 0;
+
+        // Extract at multiple timestamps
+        for (let i = 0; i < config.frameTimestamps.length; i++) {
+            const timestamp = config.frameTimestamps[i];
+            const frameNum = i + 1;
+
+            // Seek to timestamp
+            video.currentTime = video.duration * timestamp;
+            await waitForSeek(video);
+
+            // Small delay for stability
+            await new Promise((r) => setTimeout(r, 50));
+
+            // Detect hand
+            const result: HandLandmarkerResult =
+                handLandmarker.detectForVideo(video, Date.now());
+
+            if (result.landmarks && result.landmarks.length > 0) {
+                const rawLandmarks = result.landmarks[0] as unknown as Landmark[];
+
+                const baseSample: SignSample = {
+                    fileName: `${file.name}_frame${frameNum}`,
+                    signName,
+                    landmarks: cleanLandmarks(rawLandmarks),
+                    frameIndex: i,
+                    sourceFileName: file.name,
+                    isAugmented: false,
+                };
+
+                // Generate augmented versions if enabled
+                if (config.enableAugmentation) {
+                    const augmented = augmentSample(baseSample, config);
+                    results.push(...augmented);
+                    addLog(`  ✅ Frame ${frameNum}: ${augmented.length} samples`);
+                } else {
+                    results.push(baseSample);
+                    addLog(`  ✅ Frame ${frameNum}: 1 sample`);
+                }
+                validFrames++;
+            } else {
+                addLog(`  ⚠️ Frame ${frameNum}: No hand detected`);
+            }
+        }
+
+        URL.revokeObjectURL(url);
+
+        if (validFrames > 0) {
+            addLog(`✅ ${file.name}: ${results.length} samples from ${validFrames} frames`);
+        } else {
+            addLog(`⚠️ ${file.name}: No valid frames`);
+        }
+
+        return results;
     };
 
     // Handle file selection

@@ -147,61 +147,6 @@ const DeepMotionDemo: React.FC = () => {
   }, []);
 
   // ============================================================================
-  // DRAWING
-  // ============================================================================
-
-  const drawHandSkeleton = (
-    canvasCtx: CanvasRenderingContext2D,
-    landmarks: Landmark[][]
-  ) => {
-    const connections = [
-      [0, 1], [1, 2], [2, 3], [3, 4],     // thumb
-      [0, 5], [5, 6], [6, 7], [7, 8],     // index
-      [5, 9], [9, 10], [10, 11], [11, 12], // middle
-      [9, 13], [13, 14], [14, 15], [15, 16], // ring
-      [13, 17], [17, 18], [18, 19], [19, 20], // pinky
-      [0, 17],  // palm base
-    ];
-
-    if (!canvasRef.current) return;
-    canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-
-    landmarks.forEach((hand) => {
-      // Draw points
-      hand.forEach((point) => {
-        canvasCtx.beginPath();
-        canvasCtx.arc(
-          point.x * canvasRef.current!.width,
-          point.y * canvasRef.current!.height,
-          5,
-          0,
-          2 * Math.PI
-        );
-        canvasCtx.fillStyle = "#00FF00";
-        canvasCtx.fill();
-      });
-
-      // Draw connections
-      canvasCtx.strokeStyle = "#FFFFFF";
-      canvasCtx.lineWidth = 2;
-      connections.forEach(([start, end]) => {
-        const p1 = hand[start];
-        const p2 = hand[end];
-        canvasCtx.beginPath();
-        canvasCtx.moveTo(
-          p1.x * canvasRef.current!.width,
-          p1.y * canvasRef.current!.height
-        );
-        canvasCtx.lineTo(
-          p2.x * canvasRef.current!.width,
-          p2.y * canvasRef.current!.height
-        );
-        canvasCtx.stroke();
-      });
-    });
-  };
-
-  // ============================================================================
   // TRAINING (local only)
   // ============================================================================
 
@@ -224,6 +169,58 @@ const DeepMotionDemo: React.FC = () => {
   // ============================================================================
 
   const detectHands = useCallback(() => {
+    // Helper to draw hand skeleton on canvas
+    const drawHandSkeleton = (
+      canvasCtx: CanvasRenderingContext2D,
+      landmarks: Landmark[][]
+    ) => {
+      const connections = [
+        [0, 1], [1, 2], [2, 3], [3, 4],     // thumb
+        [0, 5], [5, 6], [6, 7], [7, 8],     // index
+        [5, 9], [9, 10], [10, 11], [11, 12], // middle
+        [9, 13], [13, 14], [14, 15], [15, 16], // ring
+        [13, 17], [17, 18], [18, 19], [19, 20], // pinky
+        [0, 17],  // palm base
+      ];
+
+      if (!canvasRef.current) return;
+      canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+
+      landmarks.forEach((hand) => {
+        // Draw points
+        hand.forEach((point) => {
+          canvasCtx.beginPath();
+          canvasCtx.arc(
+            point.x * canvasRef.current!.width,
+            point.y * canvasRef.current!.height,
+            5,
+            0,
+            2 * Math.PI
+          );
+          canvasCtx.fillStyle = "#00FF00";
+          canvasCtx.fill();
+        });
+
+        // Draw connections
+        canvasCtx.strokeStyle = "#FFFFFF";
+        canvasCtx.lineWidth = 2;
+        connections.forEach(([start, end]) => {
+          const p1 = hand[start];
+          const p2 = hand[end];
+          canvasCtx.beginPath();
+          canvasCtx.moveTo(
+            p1.x * canvasRef.current!.width,
+            p1.y * canvasRef.current!.height
+          );
+          canvasCtx.lineTo(
+            p2.x * canvasRef.current!.width,
+            p2.y * canvasRef.current!.height
+          );
+          canvasCtx.stroke();
+        });
+      });
+    };
+
     // Skip if camera off
     if (!cameraEnabled) {
       if (canvasRef.current) {
@@ -319,7 +316,7 @@ const DeepMotionDemo: React.FC = () => {
         setPrediction("");
       }
     }
-  }, [cameraEnabled, handLandmarker, samples, drawHandSkeleton]);
+  }, [cameraEnabled, handLandmarker, samples]);
 
   // Animation loop
   useEffect(() => {
