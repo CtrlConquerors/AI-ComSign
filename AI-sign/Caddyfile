@@ -1,0 +1,13 @@
+:80 {
+    root * /srv
+    encode gzip
+    
+    # Proxy API requests to the backend service
+    reverse_proxy /api/* ai-be:8080
+
+    # Serve static files
+    file_server
+
+    # SPA routing: Redirect unknown paths to index.html
+    try_files {path} /index.html
+}

@@ -131,7 +131,7 @@ const DeepMotionDemo: React.FC = () => {
 
     const fetchSignData = async () => {
       try {
-        const response = await fetch("http://localhost:5197/api/sign");
+        const response = await fetch("/api/sign");
         if (response.ok) {
           const data: SignSample[] = await response.json();
           setSamples(data);

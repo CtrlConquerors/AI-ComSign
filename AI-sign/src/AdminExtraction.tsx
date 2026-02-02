@@ -64,7 +64,7 @@ const AdminExtraction: React.FC = () => {
     // Fetch dataset statistics from API
     const fetchStats = async () => {
         try {
-            const response = await fetch("http://localhost:5197/api/sign/stats");
+            const response = await fetch("/api/sign/stats");
             if (response.ok) {
                 const data: SignStats[] = await response.json();
                 setStats(data);
@@ -235,7 +235,7 @@ const AdminExtraction: React.FC = () => {
         addLog(`☁️ Saving ${extractedData.length} samples to database...`);
 
         try {
-            const response = await fetch("http://localhost:5197/api/sign/batch", {
+            const response = await fetch("/api/sign/batch", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -265,7 +265,7 @@ const AdminExtraction: React.FC = () => {
 
         try {
             const response = await fetch(
-                `http://localhost:5197/api/sign/${encodeURIComponent(signName)}`,
+                `/api/sign/${encodeURIComponent(signName)}`,
                 { method: "DELETE" }
             );
 
