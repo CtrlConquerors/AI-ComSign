@@ -1,6 +1,7 @@
 ﻿/* ===== RESET SCOPED TO HOMEPAGE ===== */
 .homepage * {
     box-sizing: border-box;
+    
 }
 
 /* ===== PAGE CONTAINER (SOLID WITH ANIMATED GLOWS) ===== */
@@ -646,6 +647,7 @@
     height: 100%;
     display: block;
     animation: waveDrift 5s ease-in-out infinite alternate;
+    z-index:0;
 }
 
 /* 2D wave‑like motion: horizontal drift + a tiny vertical wobble */
@@ -721,6 +723,43 @@
 
 .footer-dot {
     opacity: 0.6;
+}
+
+/* full-screen overlay that darkens everything except a circle around the cursor */
+.flashlight-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1; /* above content but below nav if you prefer; tweak as needed */
+    /* default center so it looks ok before first mousemove */
+    --fx-x: 50vw;
+    --fx-y: 50vh;
+    /* big dark layer with a transparent/bright circular hole following the cursor */
+    background: radial-gradient( circle 430px at var(--fx-x) var(--fx-y), rgba(249, 250, 251, 0.06), /* center: slightly lifted */
+    rgba(15, 23, 42, 0.75) 100%, /* mid: dark */
+    rgba(2, 6, 23, 0.94) 100% /* outer: almost black */
+    );
+    transition: background 80ms linear;
+}
+
+/* lighten a bit more over interactive areas */
+a:hover ~ .flashlight-overlay,
+button:hover ~ .flashlight-overlay,
+.pill-btn:hover ~ .flashlight-overlay,
+.ghost-btn:hover ~ .flashlight-overlay,
+.nav-cta:hover ~ .flashlight-overlay {
+    background: radial-gradient( circle 190px at var(--fx-x) var(--fx-y), rgba(249, 250, 251, 0.16), rgba(15, 23, 42, 0.7) 55%, rgba(2, 6, 23, 0.94) 100% );
+}
+
+/* mobile: restore normal cursor and hide effect */
+@media (max-width: 768px) {
+    .homepage * {
+        cursor: auto;
+    }
+
+    .flashlight-overlay {
+        display: none;
+    }
 }
 
 /* ===== RESPONSIVE ===== */

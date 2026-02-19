@@ -1,9 +1,30 @@
 ﻿import './HomePage.css';
 import { Link } from 'react-router-dom';
+import React, { useEffect, useRef } from 'react';
 
 function HomePage() {
+    const flashlightRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        const el = flashlightRef.current;
+        if (!el) return;
+
+        const handleMove = (e: MouseEvent) => {
+            const { clientX, clientY } = e;
+            // pass cursor position into CSS via custom properties
+            el.style.setProperty('--fx-x', `${clientX}px`);
+            el.style.setProperty('--fx-y', `${clientY}px`);
+        };
+
+        window.addEventListener('mousemove', handleMove);
+        return () => window.removeEventListener('mousemove', handleMove);
+    }, []);
+
     return (
         <div className="homepage">
+            {/* flashlight overlay */}
+            <div className="flashlight-overlay" ref={flashlightRef} />
+
             {/* Top nav */}
             <header className="top-nav">
                 <Link to="/" className="nav-logo">
@@ -125,7 +146,7 @@ function HomePage() {
                 >
                     <path
                         d="M0,96 C240,160 480,0 720,64 C960,128 1200,64 1440,96 L1440,160 L0,160 Z"
-                        fill="black" 
+                        fill="#020617"
                     />
                 </svg>
             </div>

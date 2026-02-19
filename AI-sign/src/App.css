@@ -99,23 +99,72 @@ body {
 }
 
 /* ========== STATUS STRIP ========== */
-
 .status-section {
     display: flex;
     justify-content: center;
-    margin-bottom: 1.7rem;
+    margin-bottom: 1.4rem;
 }
 
-.status-card,
-.status-empty {
+/* smooth container to keep width consistent */
+.status-shell {
+    min-width: 320px;
+}
+
+/* base card styles */
+.status-card {
     text-align: center;
-    padding: 1rem 1.4rem;
+    padding: 0.9rem 1.4rem;
     border-radius: 18px;
     background: radial-gradient(circle at 0% 0%, #0b1120, #020617);
     border: 1px solid rgba(148, 163, 184, 0.6);
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.9);
     min-width: 320px;
+    /* reserve enough height for both states */
+    min-height: 88px;
+    max-height: 188px;
+    overflow: hidden;
+    transition: padding 320ms cubic-bezier(0.25, 0.1, 0.25, 1), background 320ms cubic-bezier(0.25, 0.1, 0.25, 1), border-color 320ms cubic-bezier(0.25, 0.1, 0.25, 1), box-shadow 320ms cubic-bezier(0.25, 0.1, 0.25, 1), opacity 260ms ease-out, transform 260ms ease-out;
 }
+
+/* inner wrapper so content changes don't jerk the outer box instantly */
+.status-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* empty state: slightly dimmer + tiny offset */
+.status-card.is-empty {
+    opacity: 0.9;
+    transform: translateY(0);
+}
+
+/* prediction state: tiny lift */
+.status-card.has-prediction {
+    opacity: 1;
+    transform: translateY(-1px);
+}
+
+/* letter row: fixed height so layout stays stable */
+.status-letter-wrap {
+    height: 5rem; /* reserve space even when no letter */
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+}
+
+    /* hide/show letter smoothly */
+    .status-letter-wrap.hidden .status-letter {
+        opacity: 0;
+        transform: translateY(10px) scale(0.94);
+    }
+
+    .status-letter-wrap.visible .status-letter {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 
 .status-letter {
     font-size: 3.2rem;
@@ -123,7 +172,7 @@ body {
     text-transform: uppercase;
     color: #38bdf8;
     text-shadow: 0 0 18px rgba(56, 189, 248, 0.9), 0 0 42px rgba(56, 189, 248, 0.7);
-    margin-bottom: 0.3rem;
+    transition: opacity 260ms ease-out, transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .status-metrics {
@@ -148,15 +197,115 @@ body {
     color: #4ade80;
 }
 
-.status-empty p {
+/* text styles for empty state message */
+.status-card.is-empty p {
     font-size: 0.95rem;
     color: #e5e7eb;
     margin-bottom: 0.15rem;
 }
 
-.status-empty small {
+.status-card.is-empty small {
     font-size: 0.78rem;
     color: #9ca3af;
+}
+
+/* ========== SENTENCE BUILDER ========== */
+
+.sentence-section {
+    margin-bottom: 1.4rem;
+    padding: 0.85rem 1.1rem;
+    border-radius: 16px;
+    background: radial-gradient(circle at 0% 0%, #020617, #020617);
+    border: 1px solid rgba(55, 65, 81, 0.9);
+    box-shadow: 0 16px 32px rgba(15, 23, 42, 0.85);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.sentence-current,
+.sentence-built {
+    display: flex;
+    gap: 0.4rem;
+    align-items: baseline;
+    font-size: 0.9rem;
+}
+
+    .sentence-current .label,
+    .sentence-built .label {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #6b7280;
+        font-weight: 600;
+        min-width: 110px;
+    }
+
+    .sentence-current .value {
+        font-weight: 600;
+        color: #e5e7eb;
+    }
+
+    .sentence-built .value {
+        flex: 1;
+        color: #cbd5f5;
+        word-break: break-word;
+    }
+
+    .sentence-built .placeholder,
+    .sentence-current .placeholder {
+        color: #4b5563;
+        font-style: italic;
+    }
+
+.sentence-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+}
+
+.primary-button.small,
+.secondary-button.small,
+.ghost-button.small {
+    padding: 0.5rem 1.1rem;
+    font-size: 0.8rem;
+}
+
+/* simple secondary / ghost button styles reusing palette */
+.secondary-button {
+    border-radius: 999px;
+    border: 1px solid #4b5563;
+    background: transparent;
+    color: #e5e7eb;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+    .secondary-button:hover:not(:disabled) {
+        background: #111827;
+        border-color: #6b7280;
+        transform: translateY(-1px);
+    }
+
+.ghost-button {
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+    .ghost-button:hover:not(:disabled) {
+        color: #e5e7eb;
+        background: rgba(15, 23, 42, 0.8);
+        transform: translateY(-1px);
+    }
+
+.sentence-actions button:disabled {
+    opacity: 0.45;
+    cursor: default;
+    transform: none;
 }
 
 /* ========== CONTROLS ========== */
@@ -181,20 +330,25 @@ body {
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
-    
     transform: translateY(0);
     transition: transform 140ms ease-out, box-shadow 160ms ease-out, filter 140ms ease-out;
 }
 
-    .primary-button:hover {
+    .primary-button:hover:not(:disabled) {
         transform: translateY(-1px) scale(1.02);
         filter: brightness(1.04);
         box-shadow: 0 7px 42px rgba(16, 185, 129, 0.95);
     }
 
-    .primary-button:active {
+    .primary-button:active:not(:disabled) {
         transform: translateY(0) scale(0.99);
         box-shadow: 0 10px 24px rgba(16, 185, 129, 0.8);
+    }
+
+    .primary-button:disabled {
+        opacity: 0.5;
+        cursor: default;
+        box-shadow: none;
     }
 
 .button-emoji {
@@ -311,6 +465,7 @@ body {
     font-size: 0.76rem;
     color: #6b7280;
 }
+
 /* === Camera toggle (iOS-style) === */
 
 .camera-toggle {
@@ -376,7 +531,7 @@ body {
     box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.8), 0 0 0 4px rgba(15, 23, 42, 1);
 }
 
-/* camera off overlay styling (existing, just make it nice) */
+/* camera off overlay styling */
 .camera-off-overlay {
     position: relative;
     display: grid;
@@ -433,6 +588,10 @@ body {
     .primary-button {
         width: 100%;
         justify-content: center;
+    }
+
+    .sentence-section {
+        padding: 0.75rem 0.9rem;
     }
 
     .hint-text {
