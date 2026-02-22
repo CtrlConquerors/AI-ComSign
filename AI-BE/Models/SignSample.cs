@@ -12,6 +12,12 @@ public class SignSample
 
     [Column(TypeName = "jsonb")]
     public required List<Landmark> Landmarks { get; set; }
+
+    public int? LessonId { get; set; }
+    [ForeignKey("LessonId")]
+    public Lesson? Lesson { get; set; }
+
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

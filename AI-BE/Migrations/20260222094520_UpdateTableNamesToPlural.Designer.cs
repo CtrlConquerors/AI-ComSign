@@ -5,6 +5,7 @@ using AI_BE.Data;
 using AI_BE.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -13,9 +14,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AI_BE.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260222094520_UpdateTableNamesToPlural")]
+    partial class UpdateTableNamesToPlural
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -23,66 +26,6 @@ namespace AI_BE.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("AI_BE.Models.Attempt", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Feedback")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RecordMotionData")
-                        .HasColumnType("jsonb");
-
-                    b.Property<float>("Score")
-                        .HasColumnType("real");
-
-                    b.Property<int>("SessionId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SignId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SessionId");
-
-                    b.HasIndex("SignId");
-
-                    b.ToTable("Attempts");
-                });
-
-            modelBuilder.Entity("AI_BE.Models.PracticeSession", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("EndDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("LearnerId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("StartDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("TotalScore")
-                        .HasColumnType("numeric");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("PracticeSessions");
-                });
 
             modelBuilder.Entity("AI_BE.Models.SignSample", b =>
                 {
@@ -139,25 +82,6 @@ namespace AI_BE.Migrations
                     b.ToTable("Lessons", (string)null);
                 });
 
-            modelBuilder.Entity("AI_BE.Models.Attempt", b =>
-                {
-                    b.HasOne("AI_BE.Models.PracticeSession", "Session")
-                        .WithMany("Attempts")
-                        .HasForeignKey("SessionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AI_BE.Models.SignSample", "Sign")
-                        .WithMany()
-                        .HasForeignKey("SignId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Session");
-
-                    b.Navigation("Sign");
-                });
-
             modelBuilder.Entity("AI_BE.Models.SignSample", b =>
                 {
                     b.HasOne("Lesson", "Lesson")
@@ -166,11 +90,6 @@ namespace AI_BE.Migrations
                         .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Lesson");
-                });
-
-            modelBuilder.Entity("AI_BE.Models.PracticeSession", b =>
-                {
-                    b.Navigation("Attempts");
                 });
 
             modelBuilder.Entity("Lesson", b =>
