@@ -99,4 +99,15 @@ public class SignController : ControllerBase
 
         return Ok(new { Deleted = samples.Count, SignName = signName });
     }
+
+    [HttpGet("lesson/{lessonId}")]
+    public async Task<IActionResult> GetSignsByLesson(int lessonId)
+    {
+        var signs = await _context.SignSamples
+            .Where(s => s.LessonId == lessonId)
+            .OrderBy(s => s.SignName)
+            .ToListAsync();
+
+        return Ok(signs);
+    }
 }
