@@ -36,6 +36,7 @@ function HomePage() {
                     <a href="#practice">Practice</a>
                     <a href="#features">Features</a>
                     <Link to="/admin/extraction">Data Admin</Link>
+                    <Link to="/lessons">Lesson</Link>
                 </nav>
                 <Link className="nav-cta" to="/translator">
                     Open translator
