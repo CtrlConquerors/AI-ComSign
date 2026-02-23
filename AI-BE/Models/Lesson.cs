@@ -1,5 +1,6 @@
 ﻿using AI_BE.Models;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 public class Lesson
 {
@@ -9,5 +10,6 @@ public class Lesson
     public string? Description { get; set; } 
     public string? Level { get; set; }
 
+    [JsonIgnore]
     public List<SignSample> Signs { get; set; } = new();
 }
