@@ -8,6 +8,20 @@ import type { Landmark, SignSample, MatchResult } from "./utils";
 import { findBestMatch, validateSign } from "./utils";
 
 // ============================================================================
+// CONSTANTS & TUNING
+// ============================================================================
+
+// Detection loop frequency (lower = less CPU/GPU, but also less responsive)
+const DETECTION_INTERVAL_MS = 50; // ~20 FPS
+
+// Sentence + prediction stability
+const COMMIT_MS = 1200;      // time to hold same word to commit
+const MIN_CONFIDENCE = 60;   // minimum confidence to auto-commit
+const COOLDOWN_MS = 1200;    // wait before committing same word again
+const HISTORY_SIZE = 7;      // frames kept in history
+const HISTORY_MIN_VOTES = 4; // required votes in history to accept a stable prediction
+
+// ============================================================================
 // DISTANCE CALCULATION (kept here due to specific weights)
 // ============================================================================
 
@@ -85,6 +99,10 @@ const calculateDistance = (
 const DeepMotionDemo: React.FC = () => {
     const webcamRef = useRef<Webcam>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    // NEW: camera facing mode state ("user" = front, "environment" = back)
+    const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+
     const [isAiLoaded, setIsAiLoaded] = useState(false);
     const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
 
@@ -111,10 +129,6 @@ const DeepMotionDemo: React.FC = () => {
     const lastWordChangeTsRef = useRef<number>(0);           // pure init
     const lastCommittedAtRef = useRef<number | null>(null);  // pure init
 
-    const COMMIT_MS = 1200;      // time to hold same word to commit
-    const MIN_CONFIDENCE = 60;   // minimum confidence to auto-commit
-    const COOLDOWN_MS = 1200;    // wait before committing same word again
-
     // ========================================================================
     // INITIALIZATION
     // ========================================================================
@@ -139,7 +153,6 @@ const DeepMotionDemo: React.FC = () => {
             setHandLandmarker(landmarker);
             setIsAiLoaded(true);
         };
-        loadHandLandmarker();
 
         const fetchSignData = async () => {
             try {
@@ -155,6 +168,8 @@ const DeepMotionDemo: React.FC = () => {
                 console.error("Error fetching signs:", error);
             }
         };
+
+        loadHandLandmarker();
         fetchSignData();
     }, []);
 
@@ -296,7 +311,7 @@ const DeepMotionDemo: React.FC = () => {
 
                         // Add to prediction history for stability
                         predictionHistoryRef.current.push(matchResult.signName);
-                        if (predictionHistoryRef.current.length > 5) {
+                        if (predictionHistoryRef.current.length > HISTORY_SIZE) {
                             predictionHistoryRef.current.shift();
                         }
 
@@ -316,11 +331,11 @@ const DeepMotionDemo: React.FC = () => {
                             }
                         });
 
-                        // Require at least 3/5 agreement for stable prediction
-                        if (maxCount >= 3) {
+                        // Require enough agreement for stable prediction
+                        if (maxCount >= HISTORY_MIN_VOTES) {
                             setPrediction(stableMatch);
                             setStablePrediction(stableMatch);
-                            const stabilityBonus = (maxCount / 5) * 20;
+                            const stabilityBonus = (maxCount / HISTORY_SIZE) * 20;
                             const blendedConfidence = Math.min(
                                 100,
                                 matchResult.confidence + stabilityBonus
@@ -372,23 +387,32 @@ const DeepMotionDemo: React.FC = () => {
         }
     }, [cameraEnabled, handLandmarker, samples, words]);
 
-    // Animation loop
+    // Throttled detection loop
     useEffect(() => {
-        if (!isAiLoaded) return;
+        if (!isAiLoaded || !cameraEnabled) return;
 
-        let animationId: number;
+        let cancelled = false;
+
         const loop = () => {
+            if (cancelled) return;
             detectHands();
-            animationId = requestAnimationFrame(loop);
+            setTimeout(loop, DETECTION_INTERVAL_MS);
         };
-        animationId = requestAnimationFrame(loop);
 
-        return () => cancelAnimationFrame(animationId);
-    }, [isAiLoaded, detectHands]);
+        loop();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isAiLoaded, cameraEnabled, detectHands]);
 
     // ========================================================================
     // RENDER
     // ========================================================================
+
+    const toggleCameraFacing = () => {
+        setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
+    };
 
     return (
         <div className="app-root">
@@ -487,7 +511,7 @@ const DeepMotionDemo: React.FC = () => {
                         <span>Train new sign</span>
                     </button>
 
-                    {/* Camera toggle switch */}
+                    {/* Camera on/off switch */}
                     <label className="camera-toggle">
                         <span className="camera-toggle-label">
                             Camera: {cameraEnabled ? "On" : "Off"}
@@ -501,6 +525,16 @@ const DeepMotionDemo: React.FC = () => {
                         </button>
                     </label>
 
+                    {/* Front / back camera switch */}
+                    <button
+                        type="button"
+                        className="secondary-button small"
+                        onClick={toggleCameraFacing}
+                        disabled={!cameraEnabled}
+                    >
+                        {facingMode === "user" ? "Use back camera" : "Use front camera"}
+                    </button>
+
                     {!isAiLoaded && (
                         <p className="loading-text">Loading AI model...</p>
                     )}
@@ -513,6 +547,9 @@ const DeepMotionDemo: React.FC = () => {
                                 <Webcam
                                     ref={webcamRef}
                                     className="video-element"
+                                    videoConstraints={{
+                                        facingMode,
+                                    }}
                                 />
                                 <canvas
                                     ref={canvasRef}
