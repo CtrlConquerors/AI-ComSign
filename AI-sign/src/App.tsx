@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import Webcam from "react-webcam";
 import { FilesetResolver, HandLandmarker, type HandLandmarkerResult } from "@mediapipe/tasks-vision";
+import { initVrmScene, type VrmController } from "./vrmScene";
 import "./App.css";
 
 // Import shared types and utilities
@@ -100,8 +101,12 @@ const DeepMotionDemo: React.FC = () => {
     const webcamRef = useRef<Webcam>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    // NEW: camera facing mode state ("user" = front, "environment" = back)
+    // Camera facing mode state ("user" = front, "environment" = back)
     const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+
+    // 3D avatar toggle + controller
+    const [showAvatar, setShowAvatar] = useState<boolean>(false);
+    const vrmControllerRef = useRef<VrmController | null>(null);
 
     const [isAiLoaded, setIsAiLoaded] = useState(false);
     const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
@@ -121,13 +126,13 @@ const DeepMotionDemo: React.FC = () => {
     // Sample count for display
     const [sampleCount, setSampleCount] = useState<number>(0);
 
-    // ===== Sentence building state (auto dwell-to-commit) =====
+    // Sentence building state (auto dwell-to-commit)
     const [words, setWords] = useState<string[]>([]);
     const currentSentence = words.join(" ");
 
     const lastWordRef = useRef<string | null>(null);
-    const lastWordChangeTsRef = useRef<number>(0);           // pure init
-    const lastCommittedAtRef = useRef<number | null>(null);  // pure init
+    const lastWordChangeTsRef = useRef<number>(0);
+    const lastCommittedAtRef = useRef<number | null>(null);
 
     // ========================================================================
     // INITIALIZATION
@@ -174,6 +179,42 @@ const DeepMotionDemo: React.FC = () => {
     }, []);
 
     // ========================================================================
+    // VRM AVATAR INITIALIZATION EFFECT
+    // ========================================================================
+
+    useEffect(() => {
+        if (!showAvatar) {
+            if (vrmControllerRef.current) {
+                vrmControllerRef.current.dispose();
+                vrmControllerRef.current = null;
+            }
+            return;
+        }
+
+        const container = document.getElementById("vrm-avatar-container");
+        if (!container) return;
+
+        const load = async () => {
+            try {
+                // Replace with your actual .vrm path
+                const controller = await initVrmScene(container, "/Model3D.vrm");
+                vrmControllerRef.current = controller;
+            } catch (e) {
+                console.error("Failed to init VRM scene", e);
+            }
+        };
+
+        load();
+
+        return () => {
+            if (vrmControllerRef.current) {
+                vrmControllerRef.current.dispose();
+                vrmControllerRef.current = null;
+            }
+        };
+    }, [showAvatar]);
+
+    // ========================================================================
     // TRAINING (local only)
     // ========================================================================
 
@@ -208,25 +249,23 @@ const DeepMotionDemo: React.FC = () => {
     // ========================================================================
 
     const detectHands = useCallback(() => {
-        // Helper to draw hand skeleton on canvas
         const drawHandSkeleton = (
             canvasCtx: CanvasRenderingContext2D,
             landmarks: Landmark[][]
         ) => {
             const connections = [
-                [0, 1], [1, 2], [2, 3], [3, 4],     // thumb
-                [0, 5], [5, 6], [6, 7], [7, 8],     // index
-                [5, 9], [9, 10], [10, 11], [11, 12], // middle
-                [9, 13], [13, 14], [14, 15], [15, 16], // ring
-                [13, 17], [17, 18], [18, 19], [19, 20], // pinky
-                [0, 17],  // palm base
+                [0, 1], [1, 2], [2, 3], [3, 4],
+                [0, 5], [5, 6], [6, 7], [7, 8],
+                [5, 9], [9, 10], [10, 11], [11, 12],
+                [9, 13], [13, 14], [14, 15], [15, 16],
+                [13, 17], [17, 18], [18, 19], [19, 20],
+                [0, 17],
             ];
 
             if (!canvasRef.current) return;
             canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
             landmarks.forEach((hand) => {
-                // Draw points
                 hand.forEach((point) => {
                     canvasCtx.beginPath();
                     canvasCtx.arc(
@@ -240,7 +279,6 @@ const DeepMotionDemo: React.FC = () => {
                     canvasCtx.fill();
                 });
 
-                // Draw connections
                 canvasCtx.strokeStyle = "#FFFFFF";
                 canvasCtx.lineWidth = 2;
                 connections.forEach(([start, end]) => {
@@ -260,7 +298,6 @@ const DeepMotionDemo: React.FC = () => {
             });
         };
 
-        // Skip if camera off
         if (!cameraEnabled) {
             if (canvasRef.current) {
                 const ctx = canvasRef.current.getContext("2d");
@@ -295,33 +332,34 @@ const DeepMotionDemo: React.FC = () => {
                 const detectedHand = results.landmarks[0] as Landmark[];
                 setCurrentLandmarks(detectedHand);
 
+                // Drive VRM avatar if enabled
+                if (showAvatar && vrmControllerRef.current) {
+                    vrmControllerRef.current.updateFromLandmarks(detectedHand);
+                }
+
                 if (samples.length > 0) {
-                    // Use KNN matcher with sign validation rules
                     const matchResult: MatchResult | null = findBestMatch(
                         detectedHand,
                         samples,
                         calculateDistance,
                         validateSign,
-                        3,    // K = 3 nearest neighbors
-                        4.5   // threshold
+                        3,
+                        4.5
                     );
 
                     if (matchResult) {
                         setDebugDist(Number(matchResult.avgDistance.toFixed(2)));
 
-                        // Add to prediction history for stability
                         predictionHistoryRef.current.push(matchResult.signName);
                         if (predictionHistoryRef.current.length > HISTORY_SIZE) {
                             predictionHistoryRef.current.shift();
                         }
 
-                        // Count predictions in history
                         const counts: Record<string, number> = {};
                         predictionHistoryRef.current.forEach((p) => {
                             counts[p] = (counts[p] || 0) + 1;
                         });
 
-                        // Find most common prediction
                         let maxCount = 0;
                         let stableMatch = "";
                         Object.entries(counts).forEach(([sign, count]) => {
@@ -331,7 +369,6 @@ const DeepMotionDemo: React.FC = () => {
                             }
                         });
 
-                        // Require enough agreement for stable prediction
                         if (maxCount >= HISTORY_MIN_VOTES) {
                             setPrediction(stableMatch);
                             setStablePrediction(stableMatch);
@@ -342,7 +379,6 @@ const DeepMotionDemo: React.FC = () => {
                             );
                             setConfidence(blendedConfidence);
 
-                            // ---- dwell-to-commit logic ----
                             const now = performance.now();
                             if (lastWordRef.current !== stableMatch) {
                                 lastWordRef.current = stableMatch;
@@ -370,7 +406,6 @@ const DeepMotionDemo: React.FC = () => {
                             setConfidence(0);
                         }
                     } else {
-                        // No match found
                         setDebugDist(Infinity);
                         setPrediction("");
                         setStablePrediction("");
@@ -385,7 +420,7 @@ const DeepMotionDemo: React.FC = () => {
                 setStablePrediction("");
             }
         }
-    }, [cameraEnabled, handLandmarker, samples, words]);
+    }, [cameraEnabled, handLandmarker, samples, words, showAvatar]);
 
     // Throttled detection loop
     useEffect(() => {
@@ -431,14 +466,12 @@ const DeepMotionDemo: React.FC = () => {
                     <div className="status-shell">
                         <div className={`status-card ${prediction ? "has-prediction" : "is-empty"}`}>
                             <div className="status-inner">
-                                {/* Letter row always rendered */}
                                 <div className={`status-letter-wrap ${prediction ? "visible" : "hidden"}`}>
                                     <div className="status-letter">
                                         {prediction}
                                     </div>
                                 </div>
 
-                                {/* Secondary line / metrics or helper text */}
                                 {prediction ? (
                                     <div className="status-metrics">
                                         <span className="metric metric-accuracy">
@@ -461,7 +494,7 @@ const DeepMotionDemo: React.FC = () => {
                     </div>
                 </section>
 
-                {/* ===== Sentence builder (auto-commit) ===== */}
+                {/* Sentence builder */}
                 <section className="sentence-section">
                     <div className="sentence-current">
                         <span className="label">Current word:</span>
@@ -511,7 +544,6 @@ const DeepMotionDemo: React.FC = () => {
                         <span>Train new sign</span>
                     </button>
 
-                    {/* Camera on/off switch */}
                     <label className="camera-toggle">
                         <span className="camera-toggle-label">
                             Camera: {cameraEnabled ? "On" : "Off"}
@@ -525,7 +557,6 @@ const DeepMotionDemo: React.FC = () => {
                         </button>
                     </label>
 
-                    {/* Front / back camera switch */}
                     <button
                         type="button"
                         className="secondary-button small"
@@ -533,6 +564,15 @@ const DeepMotionDemo: React.FC = () => {
                         disabled={!cameraEnabled}
                     >
                         {facingMode === "user" ? "Use back camera" : "Use front camera"}
+                    </button>
+
+                    {/* 3D avatar toggle */}
+                    <button
+                        type="button"
+                        className="secondary-button small"
+                        onClick={() => setShowAvatar((v) => !v)}
+                    >
+                        {showAvatar ? "Hide 3D avatar" : "Show 3D avatar"}
                     </button>
 
                     {!isAiLoaded && (
@@ -547,9 +587,7 @@ const DeepMotionDemo: React.FC = () => {
                                 <Webcam
                                     ref={webcamRef}
                                     className="video-element"
-                                    videoConstraints={{
-                                        facingMode,
-                                    }}
+                                    videoConstraints={{ facingMode }}
                                 />
                                 <canvas
                                     ref={canvasRef}
@@ -589,6 +627,14 @@ const DeepMotionDemo: React.FC = () => {
                         </span>
                     </div>
                 </section>
+
+                {showAvatar && (
+                    <section className="avatar-section">
+                        <div className="avatar-frame">
+                            <div id="vrm-avatar-container" className="avatar-canvas-container" />
+                        </div>
+                    </section>
+                )}
             </div>
         </div>
     );
