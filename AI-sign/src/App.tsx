@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import Webcam from "react-webcam";
-import { FilesetResolver, HandLandmarker, type HandLandmarkerResult } from "@mediapipe/tasks-vision";
+import {
+    FilesetResolver,
+    HandLandmarker,
+    type HandLandmarkerResult,
+    PoseLandmarker,
+    type PoseLandmarkerResult,
+} from "@mediapipe/tasks-vision";
 import { initVrmScene, type VrmController } from "./vrmScene";
 import "./App.css";
 
@@ -21,6 +27,12 @@ const MIN_CONFIDENCE = 60;   // minimum confidence to auto-commit
 const COOLDOWN_MS = 1200;    // wait before committing same word again
 const HISTORY_SIZE = 7;      // frames kept in history
 const HISTORY_MIN_VOTES = 4; // required votes in history to accept a stable prediction
+
+// Pose smoothing (for body / avatar)
+// alpha: 0..1 (higher = smoother but more lag)
+const POSE_SMOOTHING_ALPHA = 0.6;
+// ignore tiny jitter below this movement
+const POSE_DEADZONE = 0.0005;
 
 // ============================================================================
 // DISTANCE CALCULATION (kept here due to specific weights)
@@ -70,7 +82,6 @@ const calculateDistance = (
         1.0, 0.9, 0.9, 1.2,  // 17-20: pinky
     ];
 
-    // Calculate direct distance
     let distDirect = 0;
     for (let i = 0; i < normUser.length; i++) {
         const dx = normUser[i].x - normSample[i].x;
@@ -80,7 +91,6 @@ const calculateDistance = (
         distDirect += weight * Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    // Calculate mirrored distance (flip X)
     let distMirrored = 0;
     for (let i = 0; i < normUser.length; i++) {
         const dx = -normUser[i].x - normSample[i].x;
@@ -110,6 +120,7 @@ const DeepMotionDemo: React.FC = () => {
 
     const [isAiLoaded, setIsAiLoaded] = useState(false);
     const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
+    const [poseLandmarker, setPoseLandmarker] = useState<PoseLandmarker | null>(null);
 
     const [samples, setSamples] = useState<SignSample[]>([]);
     const [prediction, setPrediction] = useState<string>("");
@@ -134,29 +145,55 @@ const DeepMotionDemo: React.FC = () => {
     const lastWordChangeTsRef = useRef<number>(0);
     const lastCommittedAtRef = useRef<number | null>(null);
 
+    // Smoothed pose landmarks over time (for stable body skeleton)
+    const smoothedPoseRef = useRef<Landmark[] | null>(null);
+
     // ========================================================================
     // INITIALIZATION
     // ========================================================================
 
     useEffect(() => {
-        const loadHandLandmarker = async () => {
-            const vision = await FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
-            );
-            const landmarker = await HandLandmarker.createFromOptions(vision, {
-                baseOptions: {
-                    modelAssetPath:
-                        "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-                    delegate: "GPU",
-                },
-                runningMode: "VIDEO",
-                numHands: 2,
-                minHandDetectionConfidence: 0.5,
-                minHandPresenceConfidence: 0.5,
-                minTrackingConfidence: 0.5,
-            });
-            setHandLandmarker(landmarker);
-            setIsAiLoaded(true);
+        const loadModels = async () => {
+            try {
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+                );
+
+                // Hand model (always used)
+                const hand = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath:
+                            "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                        delegate: "GPU",
+                    },
+                    runningMode: "VIDEO",
+                    numHands: 2,
+                    minHandDetectionConfidence: 0.5,
+                    minHandPresenceConfidence: 0.5,
+                    minTrackingConfidence: 0.5,
+                });
+                setHandLandmarker(hand);
+
+                // Pose model (only used when avatar is shown, but cheap enough to load once)
+                const pose = await PoseLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath:
+                            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+                        delegate: "GPU",
+                    },
+                    runningMode: "VIDEO",
+                    numPoses: 1,
+                    minPoseDetectionConfidence: 0.5,
+                    minPosePresenceConfidence: 0.5,
+                    minTrackingConfidence: 0.5,
+                });
+                setPoseLandmarker(pose);
+            } catch (e) {
+                console.error("Failed to load MediaPipe models:", e);
+            } finally {
+                // Unblock UI even if something failed
+                setIsAiLoaded(true);
+            }
         };
 
         const fetchSignData = async () => {
@@ -174,7 +211,7 @@ const DeepMotionDemo: React.FC = () => {
             }
         };
 
-        loadHandLandmarker();
+        loadModels();
         fetchSignData();
     }, []);
 
@@ -196,7 +233,6 @@ const DeepMotionDemo: React.FC = () => {
 
         const load = async () => {
             try {
-                // Replace with your actual .vrm path
                 const controller = await initVrmScene(container, "/Model3D.vrm");
                 vrmControllerRef.current = controller;
             } catch (e) {
@@ -242,6 +278,43 @@ const DeepMotionDemo: React.FC = () => {
 
     const manualClear = () => {
         setWords([]);
+    };
+
+    // ========================================================================
+    // POSE SMOOTHING
+    // ========================================================================
+
+    const smoothPoseLandmarks = (pose: Landmark[]): Landmark[] => {
+        const prev = smoothedPoseRef.current;
+
+        // First frame or length mismatch: just clone
+        if (!prev || prev.length !== pose.length) {
+            const copy = pose.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+            smoothedPoseRef.current = copy;
+            return copy;
+        }
+
+        const alpha = POSE_SMOOTHING_ALPHA;
+        const next: Landmark[] = pose.map((p, i) => {
+            const pr = prev[i];
+
+            let dx = p.x - pr.x;
+            let dy = p.y - pr.y;
+            let dz = p.z - pr.z;
+
+            if (Math.abs(dx) < POSE_DEADZONE) dx = 0;
+            if (Math.abs(dy) < POSE_DEADZONE) dy = 0;
+            if (Math.abs(dz) < POSE_DEADZONE) dz = 0;
+
+            return {
+                x: pr.x + dx * alpha,
+                y: pr.y + dy * alpha,
+                z: pr.z + dz * alpha,
+            };
+        });
+
+        smoothedPoseRef.current = next;
+        return next;
     };
 
     // ========================================================================
@@ -298,6 +371,56 @@ const DeepMotionDemo: React.FC = () => {
             });
         };
 
+        const drawPoseSkeleton = (
+            canvasCtx: CanvasRenderingContext2D,
+            poseLandmarks: Landmark[]
+        ) => {
+            if (!canvasRef.current) return;
+
+            const width = canvasRef.current.width;
+            const height = canvasRef.current.height;
+
+            const connections: [number, number][] = [
+                [11, 12],                // shoulders
+                [11, 13], [13, 15],      // left arm
+                [12, 14], [14, 16],      // right arm
+                [11, 23], [12, 24],      // shoulders -> hips
+                [23, 24],                // hip line
+                [23, 25], [25, 27],      // left leg
+                [24, 26], [26, 28],      // right leg
+            ];
+
+            canvasCtx.strokeStyle = "#00BFFF";
+            canvasCtx.lineWidth = 3;
+
+            connections.forEach(([a, b]) => {
+                const p1 = poseLandmarks[a];
+                const p2 = poseLandmarks[b];
+                if (!p1 || !p2) return;
+
+                canvasCtx.beginPath();
+                canvasCtx.moveTo(p1.x * width, p1.y * height);
+                canvasCtx.lineTo(p2.x * width, p2.y * height);
+                canvasCtx.stroke();
+            });
+
+            const jointIndices = new Set<number>();
+            connections.forEach(([a, b]) => {
+                jointIndices.add(a);
+                jointIndices.add(b);
+            });
+
+            canvasCtx.fillStyle = "#FF0088";
+            jointIndices.forEach((i) => {
+                const p = poseLandmarks[i];
+                if (!p) return;
+
+                canvasCtx.beginPath();
+                canvasCtx.arc(p.x * width, p.y * height, 5, 0, 2 * Math.PI);
+                canvasCtx.fill();
+            });
+        };
+
         if (!cameraEnabled) {
             if (canvasRef.current) {
                 const ctx = canvasRef.current.getContext("2d");
@@ -320,21 +443,49 @@ const DeepMotionDemo: React.FC = () => {
         ) {
             const video = webcamRef.current.video;
             const nowInMs = performance.now();
-            const results: HandLandmarkerResult = handLandmarker.detectForVideo(video, nowInMs);
+
+            // Hands are always detected
+            const handResults: HandLandmarkerResult =
+                handLandmarker.detectForVideo(video, nowInMs);
+
+            // Pose only when avatar is shown and pose model is ready
+            let poseResults: PoseLandmarkerResult | null = null;
+            if (poseLandmarker && showAvatar) {
+                poseResults = poseLandmarker.detectForVideo(video, nowInMs);
+            }
 
             const canvasCtx = canvasRef.current.getContext("2d");
             canvasRef.current.width = video.videoWidth;
             canvasRef.current.height = video.videoHeight;
 
-            if (canvasCtx && results.landmarks && results.landmarks.length > 0) {
-                drawHandSkeleton(canvasCtx, results.landmarks as Landmark[][]);
+            if (
+                canvasCtx &&
+                handResults.landmarks &&
+                handResults.landmarks.length > 0
+            ) {
+                canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
-                const detectedHand = results.landmarks[0] as Landmark[];
+                // Draw hands
+                const handLm = handResults.landmarks as Landmark[][];
+                drawHandSkeleton(canvasCtx, handLm);
+
+                // Draw pose when available (using smoothed landmarks)
+                let poseLm: Landmark[] | null = null;
+                if (poseResults && poseResults.landmarks && poseResults.landmarks.length > 0) {
+                    const rawPose = poseResults.landmarks[0] as unknown as Landmark[];
+                    poseLm = smoothPoseLandmarks(rawPose);
+                    drawPoseSkeleton(canvasCtx, poseLm);
+                }
+
+                const detectedHand = handLm[0] as Landmark[];
                 setCurrentLandmarks(detectedHand);
 
-                // Drive VRM avatar if enabled
+                // Drive VRM avatar: hand + body
                 if (showAvatar && vrmControllerRef.current) {
                     vrmControllerRef.current.updateFromLandmarks(detectedHand);
+                    if (poseLm && vrmControllerRef.current.updateFromPose) {
+                        vrmControllerRef.current.updateFromPose(poseLm);
+                    }
                 }
 
                 if (samples.length > 0) {
@@ -420,7 +571,14 @@ const DeepMotionDemo: React.FC = () => {
                 setStablePrediction("");
             }
         }
-    }, [cameraEnabled, handLandmarker, samples, words, showAvatar]);
+    }, [
+        cameraEnabled,
+        handLandmarker,
+        poseLandmarker,
+        samples,
+        words,
+        showAvatar,
+    ]);
 
     // Throttled detection loop
     useEffect(() => {
