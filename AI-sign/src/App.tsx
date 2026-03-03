@@ -480,9 +480,17 @@ const DeepMotionDemo: React.FC = () => {
                 const detectedHand = handLm[0] as Landmark[];
                 setCurrentLandmarks(detectedHand);
 
-                // Drive VRM avatar: hand + body
+                // Drive VRM avatar: update ALL detected hands with their handedness
                 if (showAvatar && vrmControllerRef.current) {
-                    vrmControllerRef.current.updateFromLandmarks(detectedHand);
+                    for (let i = 0; i < handLm.length; i++) {
+                        const landmarks = handLm[i] as Landmark[];
+                        // Get handedness from MediaPipe result (defaults to "Right" if missing)
+                        const handednessLabel =
+                            (handResults.handedness?.[i]?.[0]?.categoryName ??
+                                handResults.handednesses?.[i]?.[0]?.categoryName ??
+                                "Right") as "Left" | "Right";
+                        vrmControllerRef.current.updateFromLandmarks(landmarks, handednessLabel);
+                    }
                     if (poseLm && vrmControllerRef.current.updateFromPose) {
                         vrmControllerRef.current.updateFromPose(poseLm);
                     }
@@ -785,7 +793,7 @@ const DeepMotionDemo: React.FC = () => {
                         </span>
                     </div>
                 </section>
-
+                
                 {showAvatar && (
                     <section className="avatar-section">
                         <div className="avatar-frame">
