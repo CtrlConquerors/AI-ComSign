@@ -171,12 +171,17 @@ export const initVrmScene = async (
         updateFromPose(poseLandmarks: Landmark[]) {
             if (!vrm || !poseLandmarks || poseLandmarks.length < 33) return;
 
-            // --- SPINE (Kalidokit spine reads shoulders/hips — no arm joints involved) ---
+            // Minimum visibility score (0–1) to treat a landmark as reliably tracked.
+            // Landmarks below this threshold are considered occluded and their arm
+            // bones are left untouched — preventing a hidden arm from driving animation.
+            const MIN_VIS = 0.5;
+
+            // --- SPINE via Kalidokit (uses shoulders/hips — no arm joints) ---
             const pose3D: KalidokitVector[] = poseLandmarks.map(lm => ({
-                x: lm.x, y: lm.y, z: lm.z, visibility: 1
+                x: lm.x, y: lm.y, z: lm.z, visibility: lm.visibility ?? 1
             }));
             const pose2D: KalidokitVector[] = poseLandmarks.map(lm => ({
-                x: lm.x, y: lm.y, z: 0, visibility: 1
+                x: lm.x, y: lm.y, z: 0, visibility: lm.visibility ?? 1
             }));
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const poseRig = Kalidokit.Pose.solve(pose3D as any, pose2D as any);
@@ -185,53 +190,51 @@ export const initVrmScene = async (
             }
 
             // ─────────────────────────────────────────────────────────────────
-            // ISOLATED ARM SOLVERS
-            // Each function receives only its own 3 landmarks.
-            // No shared state, no shared computation — one side cannot bleed
-            // into the other at any point in the call chain.
+            // ISOLATED ARM SOLVERS WITH VISIBILITY GATING
+            // Returns null if any key landmark is below the visibility threshold,
+            // leaving that arm's bones frozen at their last good position.
             // ─────────────────────────────────────────────────────────────────
 
-            /**
-             * Derives upper arm Euler angles from the shoulder→elbow direction.
-             * Returns null when the landmark distance is degenerate (occluded / collapsed).
-             */
             const solveUpperArm = (
                 shoulder: Landmark,
                 elbow: Landmark,
                 side: "left" | "right"
             ): { x: number; y: number; z: number } | null => {
+                if ((shoulder.visibility ?? 1) < MIN_VIS || (elbow.visibility ?? 1) < MIN_VIS) return null;
+
                 const dx = elbow.x - shoulder.x;
                 const dy = elbow.y - shoulder.y; // MediaPipe: +y points DOWN
                 const dz = elbow.z - shoulder.z;
                 if (Math.sqrt(dx * dx + dy * dy + dz * dz) < 0.001) return null;
 
-                // Elevation: how high the elbow is above the shoulder plane.
-                // dy < 0 means elbow is above shoulder → arm is raised.
+                // elevation is NEGATIVE when arm is below horizontal (resting),
+                // POSITIVE when arm is raised above horizontal.
                 const elevation = Math.atan2(-dy, Math.sqrt(dx * dx + dz * dz));
-
-                // Forward/back swing: how much the arm points toward the camera.
                 const forwardSwing = Math.atan2(-dz, Math.abs(dx));
 
                 return {
                     x: forwardSwing * 0.5,
                     y: 0,
-                    // VRM right bone is oriented as a mirror of left →
-                    // negate Z so that raising either arm applies the
-                    // correct rotation direction for that bone.
-                    z: side === "right" ? -elevation : elevation,
+                    // VRM left bone: negative Z = arm down, positive Z = arm up
+                    // VRM right bone: positive Z = arm down, negative Z = arm up
+                    // → to lower arms (elevation < 0): left needs positive, right needs negative
+                    z: side === "right" ? elevation : -elevation,
                 };
             };
 
-            /**
-             * Derives lower arm (elbow) bend from the upper↔lower arm angle.
-             * Applied on the Z axis (flex/extend), not Y (which is forearm twist).
-             */
             const solveLowerArm = (
                 shoulder: Landmark,
                 elbow: Landmark,
                 wrist: Landmark,
                 side: "left" | "right"
-            ): { x: number; y: number; z: number } => {
+            ): { x: number; y: number; z: number } | null => {
+                // Skip if elbow or wrist is occluded
+                if (
+                    (shoulder.visibility ?? 1) < MIN_VIS ||
+                    (elbow.visibility ?? 1) < MIN_VIS ||
+                    (wrist.visibility ?? 1) < MIN_VIS
+                ) return null;
+
                 const upper = new THREE.Vector3(
                     elbow.x - shoulder.x, elbow.y - shoulder.y, elbow.z - shoulder.z
                 ).normalize();
@@ -239,25 +242,26 @@ export const initVrmScene = async (
                     wrist.x - elbow.x, wrist.y - elbow.y, wrist.z - elbow.z
                 ).normalize();
                 const angle = Math.acos(clamp(upper.dot(lower), -1, 1));
-                // Sign mirrors between sides to match each bone's local Z orientation
                 return { x: 0, y: 0, z: side === "right" ? angle : -angle };
             };
 
-            // --- RIGHT ARM — reads landmark indices 12, 14, 16 ONLY ---
+            // --- RIGHT ARM (landmark indices 12, 14, 16 only) ---
             const rS = poseLandmarks[12]; // RIGHT_SHOULDER
             const rE = poseLandmarks[14]; // RIGHT_ELBOW
             const rW = poseLandmarks[16]; // RIGHT_WRIST
             const rightUpperRot = solveUpperArm(rS, rE, "right");
             if (rightUpperRot) rigRotation(getBone("rightUpperArm"), rightUpperRot, 1, lerpFactor);
-            rigRotation(getBone("rightLowerArm"), solveLowerArm(rS, rE, rW, "right"), 1, lerpFactor);
+            const rightLowerRot = solveLowerArm(rS, rE, rW, "right");
+            if (rightLowerRot) rigRotation(getBone("rightLowerArm"), rightLowerRot, 1, lerpFactor);
 
-            // --- LEFT ARM — reads landmark indices 11, 13, 15 ONLY ---
+            // --- LEFT ARM (landmark indices 11, 13, 15 only) ---
             const lS = poseLandmarks[11]; // LEFT_SHOULDER
             const lE = poseLandmarks[13]; // LEFT_ELBOW
             const lW = poseLandmarks[15]; // LEFT_WRIST
             const leftUpperRot = solveUpperArm(lS, lE, "left");
             if (leftUpperRot) rigRotation(getBone("leftUpperArm"), leftUpperRot, 1, lerpFactor);
-            rigRotation(getBone("leftLowerArm"), solveLowerArm(lS, lE, lW, "left"), 1, lerpFactor);
+            const leftLowerRot = solveLowerArm(lS, lE, lW, "left");
+            if (leftLowerRot) rigRotation(getBone("leftLowerArm"), leftLowerRot, 1, lerpFactor);
         },
 
         dispose() {

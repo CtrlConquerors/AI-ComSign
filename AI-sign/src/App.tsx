@@ -287,9 +287,8 @@ const DeepMotionDemo: React.FC = () => {
     const smoothPoseLandmarks = (pose: Landmark[]): Landmark[] => {
         const prev = smoothedPoseRef.current;
 
-        // First frame or length mismatch: just clone
         if (!prev || prev.length !== pose.length) {
-            const copy = pose.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+            const copy = pose.map((p) => ({ x: p.x, y: p.y, z: p.z, visibility: p.visibility }));
             smoothedPoseRef.current = copy;
             return copy;
         }
@@ -310,6 +309,8 @@ const DeepMotionDemo: React.FC = () => {
                 x: pr.x + dx * alpha,
                 y: pr.y + dy * alpha,
                 z: pr.z + dz * alpha,
+                // Pass visibility through as-is — it's a confidence score, not a position
+                visibility: p.visibility,
             };
         });
 
@@ -336,7 +337,8 @@ const DeepMotionDemo: React.FC = () => {
             ];
 
             if (!canvasRef.current) return;
-            canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            // ← clearRect removed: the canvas is already cleared before this is called,
+            //   and calling it again would erase the pose skeleton drawn just before.
 
             landmarks.forEach((hand) => {
                 hand.forEach((point) => {
@@ -454,45 +456,42 @@ const DeepMotionDemo: React.FC = () => {
                 poseResults = poseLandmarker.detectForVideo(video, nowInMs);
             }
 
-            const canvasCtx = canvasRef.current.getContext("2d");
+                        const canvasCtx = canvasRef.current.getContext("2d");
             canvasRef.current.width = video.videoWidth;
             canvasRef.current.height = video.videoHeight;
 
-            if (
-                canvasCtx &&
-                handResults.landmarks &&
-                handResults.landmarks.length > 0
-            ) {
-                canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            if (!canvasCtx) return;
 
-                // Draw hands
+            canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+
+            // ── POSE: always runs when avatar is shown, independent of hand detection ──
+            let poseLm: Landmark[] | null = null;
+            if (poseResults && poseResults.landmarks && poseResults.landmarks.length > 0) {
+                const rawPose = poseResults.landmarks[0] as unknown as Landmark[];
+                poseLm = smoothPoseLandmarks(rawPose);
+                drawPoseSkeleton(canvasCtx, poseLm);
+            }
+
+            if (showAvatar && vrmControllerRef.current && poseLm && vrmControllerRef.current.updateFromPose) {
+                vrmControllerRef.current.updateFromPose(poseLm);
+            }
+
+            // ── HANDS: only runs when at least one hand is detected ──
+            if (handResults.landmarks && handResults.landmarks.length > 0) {
                 const handLm = handResults.landmarks as Landmark[][];
                 drawHandSkeleton(canvasCtx, handLm);
-
-                // Draw pose when available (using smoothed landmarks)
-                let poseLm: Landmark[] | null = null;
-                if (poseResults && poseResults.landmarks && poseResults.landmarks.length > 0) {
-                    const rawPose = poseResults.landmarks[0] as unknown as Landmark[];
-                    poseLm = smoothPoseLandmarks(rawPose);
-                    drawPoseSkeleton(canvasCtx, poseLm);
-                }
 
                 const detectedHand = handLm[0] as Landmark[];
                 setCurrentLandmarks(detectedHand);
 
-                // Drive VRM avatar: update ALL detected hands with their handedness
                 if (showAvatar && vrmControllerRef.current) {
                     for (let i = 0; i < handLm.length; i++) {
                         const landmarks = handLm[i] as Landmark[];
-                        // Get handedness from MediaPipe result (defaults to "Right" if missing)
                         const handednessLabel =
                             (handResults.handedness?.[i]?.[0]?.categoryName ??
                                 handResults.handednesses?.[i]?.[0]?.categoryName ??
                                 "Right") as "Left" | "Right";
                         vrmControllerRef.current.updateFromLandmarks(landmarks, handednessLabel);
-                    }
-                    if (poseLm && vrmControllerRef.current.updateFromPose) {
-                        vrmControllerRef.current.updateFromPose(poseLm);
                     }
                 }
 
@@ -573,8 +572,7 @@ const DeepMotionDemo: React.FC = () => {
                         lastWordRef.current = null;
                     }
                 }
-            } else if (canvasCtx) {
-                canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            } else {
                 setPrediction("");
                 setStablePrediction("");
             }
