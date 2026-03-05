@@ -466,14 +466,20 @@ const DeepMotionDemo: React.FC = () => {
 
             // ── POSE: always runs when avatar is shown, independent of hand detection ──
             let poseLm: Landmark[] | null = null;
+            let worldLm: Landmark[] | null = null;
             if (poseResults && poseResults.landmarks && poseResults.landmarks.length > 0) {
                 const rawPose = poseResults.landmarks[0] as unknown as Landmark[];
                 poseLm = smoothPoseLandmarks(rawPose);
                 drawPoseSkeleton(canvasCtx, poseLm);
+
+                // worldLandmarks are in metres — required for accurate Kalidokit arm solving
+                if (poseResults.worldLandmarks && poseResults.worldLandmarks.length > 0) {
+                    worldLm = poseResults.worldLandmarks[0] as unknown as Landmark[];
+                }
             }
 
             if (showAvatar && vrmControllerRef.current && poseLm && vrmControllerRef.current.updateFromPose) {
-                vrmControllerRef.current.updateFromPose(poseLm);
+                vrmControllerRef.current.updateFromPose(poseLm, worldLm ?? undefined);
             }
 
             // ── HANDS: only runs when at least one hand is detected ──

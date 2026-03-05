@@ -9,12 +9,10 @@ type KalidokitVector = { x: number; y: number; z: number; visibility?: number };
 
 export interface VrmController {
     updateFromLandmarks(landmarks: Landmark[], handedness: "Left" | "Right"): void;
-    updateFromPose?(poseLandmarks: Landmark[]): void;
+    // worldLandmarks: MediaPipe world-space coords (meters) for accurate 3D arm solving
+    updateFromPose?(poseLandmarks: Landmark[], worldLandmarks?: Landmark[]): void;
     dispose(): void;
 }
-
-// Helper to clamp rotation values
-const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 
 // Helper function to apply rotation with lerp - standard Kalidokit pattern
 const rigRotation = (
@@ -149,119 +147,116 @@ export const initVrmScene = async (
         updateFromLandmarks(landmarks: Landmark[], handedness: "Left" | "Right") {
             if (!vrm || !landmarks || landmarks.length === 0) return;
 
+            // MediaPipe "Right" = VRM left side (webcam mirror + VRM faces the viewer)
             const side = handedness === "Right" ? "left" : "right";
-            const wristBone = getBone(`${side}Hand` as VRMHumanBoneName);
 
-            if (!wristBone) return;
+            // ── FIX: Kalidokit side must match the VRM bone side, NOT the MediaPipe label ──
+            // From doc.txt rigFingers: invert = side === RIGHT ? 1 : -1
+            // Passing the wrong side flips the invert multiplier → all finger z values
+            // end up with the opposite sign → fingers curl in the reverse direction.
+            const kalidokitSide = (side === "left" ? "Left" : "Right") as "Left" | "Right";
 
-            const wrist = landmarks[0];
-            const middleMcp = landmarks[9];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const handRig = Kalidokit.Hand.solve(landmarks as any, kalidokitSide);
+            if (!handRig) return;
 
-            const dx = middleMcp.x - wrist.x;
-            const dy = middleMcp.y - wrist.y;
-            const dz = middleMcp.z - wrist.z;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const rot = (key: string) => (handRig as any)[key] as { x: number; y: number; z: number } | undefined;
 
-            const yaw = Math.atan2(dx, -dz) * (side === "left" ? -1 : 1);
-            const pitch = Math.atan2(-dy, Math.sqrt(dx * dx + dz * dz));
+            // Wrist — key prefix is kalidokitSide ("Left" or "Right")
+            const wristRot = rot(`${kalidokitSide}Wrist`);
+            if (wristRot) rigRotation(getBone(`${side}Hand` as VRMHumanBoneName), wristRot, 1, lerpFactor);
 
-            wristBone.rotation.x = THREE.MathUtils.lerp(wristBone.rotation.x, pitch * 0.8, lerpFactor);
-            wristBone.rotation.y = THREE.MathUtils.lerp(wristBone.rotation.y, yaw * 0.8, lerpFactor);
+            // All finger joints — [KalidokitKey, VRMBoneName]
+            // Thumb: Kalidokit Proximal → VRM Metacarpal, Intermediate → VRM Proximal
+            const fingerMap: [string, string][] = [
+                [`${kalidokitSide}IndexProximal`, `${side}IndexProximal`],
+                [`${kalidokitSide}IndexIntermediate`, `${side}IndexIntermediate`],
+                [`${kalidokitSide}IndexDistal`, `${side}IndexDistal`],
+                [`${kalidokitSide}MiddleProximal`, `${side}MiddleProximal`],
+                [`${kalidokitSide}MiddleIntermediate`, `${side}MiddleIntermediate`],
+                [`${kalidokitSide}MiddleDistal`, `${side}MiddleDistal`],
+                [`${kalidokitSide}RingProximal`, `${side}RingProximal`],
+                [`${kalidokitSide}RingIntermediate`, `${side}RingIntermediate`],
+                [`${kalidokitSide}RingDistal`, `${side}RingDistal`],
+                [`${kalidokitSide}LittleProximal`, `${side}LittleProximal`],
+                [`${kalidokitSide}LittleIntermediate`, `${side}LittleIntermediate`],
+                [`${kalidokitSide}LittleDistal`, `${side}LittleDistal`],
+                [`${kalidokitSide}ThumbProximal`, `${side}ThumbMetacarpal`],
+                [`${kalidokitSide}ThumbIntermediate`, `${side}ThumbProximal`],
+                [`${kalidokitSide}ThumbDistal`, `${side}ThumbDistal`],
+            ];
+
+            fingerMap.forEach(([kKey, vrmBone]) => {
+                const r = rot(kKey);
+                if (r) rigRotation(getBone(vrmBone as VRMHumanBoneName), r, 1, lerpFactor);
+            });
         },
 
-        updateFromPose(poseLandmarks: Landmark[]) {
+        updateFromPose(poseLandmarks: Landmark[], worldLandmarks?: Landmark[]) {
             if (!vrm || !poseLandmarks || poseLandmarks.length < 33) return;
 
-            // Minimum visibility score (0–1) to treat a landmark as reliably tracked.
-            // Landmarks below this threshold are considered occluded and their arm
-            // bones are left untouched — preventing a hidden arm from driving animation.
-            const MIN_VIS = 0.5;
+            // ── FIX: Kalidokit.Pose.solve() expects two DIFFERENT landmark sets ──────────
+            // pose3D → world-space coordinates in metres  (MediaPipe worldLandmarks)
+            // pose2D → normalized screen coordinates 0-1  (MediaPipe landmarks)
+            // Passing the same normalised array for both gives Pose.solve() wrong
+            // depth data and produces near-zero arm rotations ("arms don't move").
+            // Fall back to poseLandmarks for pose3D when worldLandmarks are unavailable.
+            // ────────────────────────────────────────────────────────────────────────────
+            const src3D = worldLandmarks ?? poseLandmarks;
 
-            // --- SPINE via Kalidokit (uses shoulders/hips — no arm joints) ---
-            const pose3D: KalidokitVector[] = poseLandmarks.map(lm => ({
+            const pose3D: KalidokitVector[] = src3D.map(lm => ({
                 x: lm.x, y: lm.y, z: lm.z, visibility: lm.visibility ?? 1
             }));
             const pose2D: KalidokitVector[] = poseLandmarks.map(lm => ({
                 x: lm.x, y: lm.y, z: 0, visibility: lm.visibility ?? 1
             }));
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const poseRig = Kalidokit.Pose.solve(pose3D as any, pose2D as any);
-            if (poseRig?.Spine) {
+            if (!poseRig) return;
+
+            // Spine
+            if (poseRig.Spine) {
                 rigRotation(getBone("spine"), poseRig.Spine, 0.5, lerpFactor);
             }
 
-            // ─────────────────────────────────────────────────────────────────
-            // ISOLATED ARM SOLVERS WITH VISIBILITY GATING
-            // Returns null if any key landmark is below the visibility threshold,
-            // leaving that arm's bones frozen at their last good position.
-            // ─────────────────────────────────────────────────────────────────
+            // ── Landmark index mapping (Kalidokit's calcArms, doc.txt) ──────────────────
+            // Kalidokit SWAPS left/right to compensate for webcam mirror:
+            //   UpperArm.r = findRotation(lm[11], lm[13])  ← MediaPipe LEFT landmarks
+            //   UpperArm.l = findRotation(lm[12], lm[14])  ← MediaPipe RIGHT landmarks
+            // Visibility gating must use the same indices Kalidokit used internally.
+            // ────────────────────────────────────────────────────────────────────────────
 
-            const solveUpperArm = (
-                shoulder: Landmark,
-                elbow: Landmark,
-                side: "left" | "right"
-            ): { x: number; y: number; z: number } | null => {
-                if ((shoulder.visibility ?? 1) < MIN_VIS || (elbow.visibility ?? 1) < MIN_VIS) return null;
+            // Lowered from 0.5 → 0.3: typical webcam pose landmarks are often 0.3-0.5
+            const MIN_VIS = 0.3;
+            const vis = (lm: Landmark) => lm.visibility ?? 1;
 
-                const dx = elbow.x - shoulder.x;
-                const dy = elbow.y - shoulder.y; // MediaPipe: +y points DOWN
-                const dz = elbow.z - shoulder.z;
-                if (Math.sqrt(dx * dx + dy * dy + dz * dz) < 0.001) return null;
+            // Landmarks Kalidokit used to compute RightUpperArm (MediaPipe LEFT side)
+            const kRS = poseLandmarks[11]; // LEFT_SHOULDER  → drives VRM rightUpperArm
+            const kRE = poseLandmarks[13]; // LEFT_ELBOW     → drives VRM rightUpperArm
+            const kRW = poseLandmarks[15]; // LEFT_WRIST     → drives VRM rightLowerArm
 
-                // elevation is NEGATIVE when arm is below horizontal (resting),
-                // POSITIVE when arm is raised above horizontal.
-                const elevation = Math.atan2(-dy, Math.sqrt(dx * dx + dz * dz));
-                const forwardSwing = Math.atan2(-dz, Math.abs(dx));
+            // Landmarks Kalidokit used to compute LeftUpperArm (MediaPipe RIGHT side)
+            const kLS = poseLandmarks[12]; // RIGHT_SHOULDER → drives VRM leftUpperArm
+            const kLE = poseLandmarks[14]; // RIGHT_ELBOW    → drives VRM leftUpperArm
+            const kLW = poseLandmarks[16]; // RIGHT_WRIST    → drives VRM leftLowerArm
 
-                return {
-                    x: forwardSwing * 0.5,
-                    y: 0,
-                    // VRM left bone: negative Z = arm down, positive Z = arm up
-                    // VRM right bone: positive Z = arm down, negative Z = arm up
-                    // → to lower arms (elevation < 0): left needs positive, right needs negative
-                    z: side === "right" ? elevation : -elevation,
-                };
-            };
+            // RIGHT ARM — gated on MediaPipe LEFT landmarks (Kalidokit convention)
+            if (vis(kRS) >= MIN_VIS && vis(kRE) >= MIN_VIS && poseRig.RightUpperArm) {
+                rigRotation(getBone("rightUpperArm"), poseRig.RightUpperArm, 1, lerpFactor);
+            }
+            if (vis(kRE) >= MIN_VIS && vis(kRW) >= MIN_VIS && poseRig.RightLowerArm) {
+                rigRotation(getBone("rightLowerArm"), poseRig.RightLowerArm, 1, lerpFactor);
+            }
 
-            const solveLowerArm = (
-                shoulder: Landmark,
-                elbow: Landmark,
-                wrist: Landmark,
-                side: "left" | "right"
-            ): { x: number; y: number; z: number } | null => {
-                // Skip if elbow or wrist is occluded
-                if (
-                    (shoulder.visibility ?? 1) < MIN_VIS ||
-                    (elbow.visibility ?? 1) < MIN_VIS ||
-                    (wrist.visibility ?? 1) < MIN_VIS
-                ) return null;
-
-                const upper = new THREE.Vector3(
-                    elbow.x - shoulder.x, elbow.y - shoulder.y, elbow.z - shoulder.z
-                ).normalize();
-                const lower = new THREE.Vector3(
-                    wrist.x - elbow.x, wrist.y - elbow.y, wrist.z - elbow.z
-                ).normalize();
-                const angle = Math.acos(clamp(upper.dot(lower), -1, 1));
-                return { x: 0, y: 0, z: side === "right" ? angle : -angle };
-            };
-
-            // --- RIGHT ARM (landmark indices 12, 14, 16 only) ---
-            const rS = poseLandmarks[12]; // RIGHT_SHOULDER
-            const rE = poseLandmarks[14]; // RIGHT_ELBOW
-            const rW = poseLandmarks[16]; // RIGHT_WRIST
-            const rightUpperRot = solveUpperArm(rS, rE, "right");
-            if (rightUpperRot) rigRotation(getBone("rightUpperArm"), rightUpperRot, 1, lerpFactor);
-            const rightLowerRot = solveLowerArm(rS, rE, rW, "right");
-            if (rightLowerRot) rigRotation(getBone("rightLowerArm"), rightLowerRot, 1, lerpFactor);
-
-            // --- LEFT ARM (landmark indices 11, 13, 15 only) ---
-            const lS = poseLandmarks[11]; // LEFT_SHOULDER
-            const lE = poseLandmarks[13]; // LEFT_ELBOW
-            const lW = poseLandmarks[15]; // LEFT_WRIST
-            const leftUpperRot = solveUpperArm(lS, lE, "left");
-            if (leftUpperRot) rigRotation(getBone("leftUpperArm"), leftUpperRot, 1, lerpFactor);
-            const leftLowerRot = solveLowerArm(lS, lE, lW, "left");
-            if (leftLowerRot) rigRotation(getBone("leftLowerArm"), leftLowerRot, 1, lerpFactor);
+            // LEFT ARM — gated on MediaPipe RIGHT landmarks (Kalidokit convention)
+            if (vis(kLS) >= MIN_VIS && vis(kLE) >= MIN_VIS && poseRig.LeftUpperArm) {
+                rigRotation(getBone("leftUpperArm"), poseRig.LeftUpperArm, 1, lerpFactor);
+            }
+            if (vis(kLE) >= MIN_VIS && vis(kLW) >= MIN_VIS && poseRig.LeftLowerArm) {
+                rigRotation(getBone("leftLowerArm"), poseRig.LeftLowerArm, 1, lerpFactor);
+            }
         },
 
         dispose() {
