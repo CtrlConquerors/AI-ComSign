@@ -88,7 +88,7 @@ export const initVrmScene = async (
         return vrm?.humanoid?.getRawBoneNode(name) ?? null;
     };
 
-    // --- Drag-to-rotate interaction ---
+    // --- Drag-to-rotate + scroll/pinch-to-zoom interaction ---
     let isDragging = false;
     let lastX = 0;
     let lastY = 0;
@@ -108,8 +108,9 @@ export const initVrmScene = async (
         lastY = ev.clientY;
 
         vrm.scene.rotation.y += dx * 0.005;
+        // ── FIX: was (- dy) which inverted up/down; now (+ dy) matches drag direction ──
         vrm.scene.rotation.x = THREE.MathUtils.clamp(
-            vrm.scene.rotation.x - dy * 0.005,
+            vrm.scene.rotation.x + dy * 0.005,
             -Math.PI / 4,
             Math.PI / 4
         );
@@ -120,10 +121,25 @@ export const initVrmScene = async (
         (ev.target as HTMLElement).releasePointerCapture(ev.pointerId);
     };
 
+    // Scroll wheel + touchpad pinch → zoom by moving camera along Z axis.
+    // ctrlKey is true for touchpad pinch gestures (browser-normalised pinch-to-zoom).
+    const onWheel = (ev: WheelEvent) => {
+        ev.preventDefault();
+        // Pinch deltas are much smaller than scroll wheel deltas — scale accordingly
+        const scale = ev.ctrlKey ? 0.05 : 0.005;
+        camera.position.z = THREE.MathUtils.clamp(
+            camera.position.z + ev.deltaY * scale,
+            0.8,  // closest (almost touching)
+            5.0   // farthest
+        );
+    };
+
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("pointerleave", onPointerUp);
+    // passive: false is required so ev.preventDefault() can suppress the page scroll
+    renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
 
     let animationFrameId: number;
     const renderLoop = () => {
@@ -259,6 +275,7 @@ export const initVrmScene = async (
             renderer.domElement.removeEventListener("pointermove", onPointerMove);
             renderer.domElement.removeEventListener("pointerup", onPointerUp);
             renderer.domElement.removeEventListener("pointerleave", onPointerUp);
+            renderer.domElement.removeEventListener("wheel", onWheel);
 
             renderer.dispose();
             if (renderer.domElement.parentElement === container) {
