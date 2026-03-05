@@ -29,10 +29,10 @@ const HISTORY_SIZE = 7;      // frames kept in history
 const HISTORY_MIN_VOTES = 4; // required votes in history to accept a stable prediction
 
 // Pose smoothing (for body / avatar)
-// alpha: 0..1 (higher = smoother but more lag)
-const POSE_SMOOTHING_ALPHA = 0.6;
-// ignore tiny jitter below this movement
-const POSE_DEADZONE = 0.0005;
+// Lower alpha = smoother output with less jitter (at cost of slight lag)
+const POSE_SMOOTHING_ALPHA = 0.35;
+// Ignore landmark movements smaller than this — filters micro-jitter
+const POSE_DEADZONE = 0.003;
 
 // ============================================================================
 // DISTANCE CALCULATION (kept here due to specific weights)
@@ -327,18 +327,21 @@ const DeepMotionDemo: React.FC = () => {
             canvasCtx: CanvasRenderingContext2D,
             landmarks: Landmark[][]
         ) => {
+            // Standard MediaPipe hand connections:
+            // Wrist (0) connects directly to ALL five MCP joints — this creates the
+            // visible fan/V shape at the wrist. Missing [0,9] and [0,13] caused only
+            // two lines to fan out, which collapsed into a single line from many angles.
             const connections = [
-                [0, 1], [1, 2], [2, 3], [3, 4],
-                [0, 5], [5, 6], [6, 7], [7, 8],
-                [5, 9], [9, 10], [10, 11], [11, 12],
-                [9, 13], [13, 14], [14, 15], [15, 16],
-                [13, 17], [17, 18], [18, 19], [19, 20],
-                [0, 17],
+                [0, 1], [1, 2], [2, 3], [3, 4],          // thumb
+                [0, 5], [5, 6], [6, 7], [7, 8],           // index
+                [0, 9], [9, 10], [10, 11], [11, 12],      // middle  ← [0,9] added
+                [0, 13], [13, 14], [14, 15], [15, 16],    // ring    ← [0,13] added
+                [0, 17], [17, 18], [18, 19], [19, 20],    // pinky
+                // Knuckle line across the palm
+                [5, 9], [9, 13], [13, 17],
             ];
 
             if (!canvasRef.current) return;
-            // ← clearRect removed: the canvas is already cleared before this is called,
-            //   and calling it again would erase the pose skeleton drawn just before.
 
             landmarks.forEach((hand) => {
                 hand.forEach((point) => {
@@ -383,14 +386,19 @@ const DeepMotionDemo: React.FC = () => {
             const height = canvasRef.current.height;
 
             const connections: [number, number][] = [
-                [11, 12],                // shoulders
-                [11, 13], [13, 15],      // left arm
-                [12, 14], [14, 16],      // right arm
-                [11, 23], [12, 24],      // shoulders -> hips
-                [23, 24],                // hip line
-                [23, 25], [25, 27],      // left leg
-                [24, 26], [26, 28],      // right leg
+                [11, 12],
+                [11, 13], [13, 15],
+                [12, 14], [14, 16],
+                [11, 23], [12, 24],
+                [23, 24],
+                [23, 25], [25, 27],
+                [24, 26], [26, 28],
+                // Wrist fan — pose landmarks include pinky(17/18), index(19/20), thumb(21/22)
+                [15, 17], [15, 19], [15, 21],  // left wrist  → pinky / index / thumb
+                [16, 18], [16, 20], [16, 22],  // right wrist → pinky / index / thumb
             ];
+
+            const MIN_DRAW_VIS = 0.3;
 
             canvasCtx.strokeStyle = "#00BFFF";
             canvasCtx.lineWidth = 3;
@@ -399,6 +407,7 @@ const DeepMotionDemo: React.FC = () => {
                 const p1 = poseLandmarks[a];
                 const p2 = poseLandmarks[b];
                 if (!p1 || !p2) return;
+                if ((p1.visibility ?? 1) < MIN_DRAW_VIS || (p2.visibility ?? 1) < MIN_DRAW_VIS) return;
 
                 canvasCtx.beginPath();
                 canvasCtx.moveTo(p1.x * width, p1.y * height);
@@ -415,7 +424,7 @@ const DeepMotionDemo: React.FC = () => {
             canvasCtx.fillStyle = "#FF0088";
             jointIndices.forEach((i) => {
                 const p = poseLandmarks[i];
-                if (!p) return;
+                if (!p || (p.visibility ?? 1) < MIN_DRAW_VIS) return;
 
                 canvasCtx.beginPath();
                 canvasCtx.arc(p.x * width, p.y * height, 5, 0, 2 * Math.PI);

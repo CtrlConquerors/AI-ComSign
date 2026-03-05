@@ -147,14 +147,15 @@ export const initVrmScene = async (
         updateFromLandmarks(landmarks: Landmark[], handedness: "Left" | "Right") {
             if (!vrm || !landmarks || landmarks.length === 0) return;
 
-            // MediaPipe "Right" = VRM left side (webcam mirror + VRM faces the viewer)
-            const side = handedness === "Right" ? "left" : "right";
+            // Direct mapping: user's left hand → VRM left bones, right → right.
+            // MediaPipe reports handedness from the user's anatomical perspective.
+            const side = handedness === "Left" ? "left" : "right";
 
-            // ── FIX: Kalidokit side must match the VRM bone side, NOT the MediaPipe label ──
-            // From doc.txt rigFingers: invert = side === RIGHT ? 1 : -1
-            // Passing the wrong side flips the invert multiplier → all finger z values
-            // end up with the opposite sign → fingers curl in the reverse direction.
-            const kalidokitSide = (side === "left" ? "Left" : "Right") as "Left" | "Right";
+            // kalidokitSide MUST equal the MediaPipe label — Kalidokit uses it to
+            // choose the palm-normal vector and the invert multiplier in rigFingers
+            // (doc.txt: invert = side === RIGHT ? 1 : -1).
+            // Using the VRM-bone side here would flip all finger z-rotations.
+            const kalidokitSide = handedness;
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const handRig = Kalidokit.Hand.solve(landmarks as any, kalidokitSide);
@@ -163,12 +164,9 @@ export const initVrmScene = async (
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const rot = (key: string) => (handRig as any)[key] as { x: number; y: number; z: number } | undefined;
 
-            // Wrist — key prefix is kalidokitSide ("Left" or "Right")
             const wristRot = rot(`${kalidokitSide}Wrist`);
             if (wristRot) rigRotation(getBone(`${side}Hand` as VRMHumanBoneName), wristRot, 1, lerpFactor);
 
-            // All finger joints — [KalidokitKey, VRMBoneName]
-            // Thumb: Kalidokit Proximal → VRM Metacarpal, Intermediate → VRM Proximal
             const fingerMap: [string, string][] = [
                 [`${kalidokitSide}IndexProximal`, `${side}IndexProximal`],
                 [`${kalidokitSide}IndexIntermediate`, `${side}IndexIntermediate`],
@@ -196,13 +194,6 @@ export const initVrmScene = async (
         updateFromPose(poseLandmarks: Landmark[], worldLandmarks?: Landmark[]) {
             if (!vrm || !poseLandmarks || poseLandmarks.length < 33) return;
 
-            // ── FIX: Kalidokit.Pose.solve() expects two DIFFERENT landmark sets ──────────
-            // pose3D → world-space coordinates in metres  (MediaPipe worldLandmarks)
-            // pose2D → normalized screen coordinates 0-1  (MediaPipe landmarks)
-            // Passing the same normalised array for both gives Pose.solve() wrong
-            // depth data and produces near-zero arm rotations ("arms don't move").
-            // Fall back to poseLandmarks for pose3D when worldLandmarks are unavailable.
-            // ────────────────────────────────────────────────────────────────────────────
             const src3D = worldLandmarks ?? poseLandmarks;
 
             const pose3D: KalidokitVector[] = src3D.map(lm => ({
@@ -216,33 +207,21 @@ export const initVrmScene = async (
             const poseRig = Kalidokit.Pose.solve(pose3D as any, pose2D as any);
             if (!poseRig) return;
 
-            // Spine
             if (poseRig.Spine) {
                 rigRotation(getBone("spine"), poseRig.Spine, 0.5, lerpFactor);
             }
 
-            // ── Landmark index mapping (Kalidokit's calcArms, doc.txt) ──────────────────
-            // Kalidokit SWAPS left/right to compensate for webcam mirror:
-            //   UpperArm.r = findRotation(lm[11], lm[13])  ← MediaPipe LEFT landmarks
-            //   UpperArm.l = findRotation(lm[12], lm[14])  ← MediaPipe RIGHT landmarks
-            // Visibility gating must use the same indices Kalidokit used internally.
+            // ── Kalidokit landmark convention (doc.txt: calcArms) ───────────────────────
+            // RightUpperArm / RightHand ← computed from MediaPipe LEFT landmarks (11,13,15,17,19)
+            // LeftUpperArm  / LeftHand  ← computed from MediaPipe RIGHT landmarks (12,14,16,18,20)
             // ────────────────────────────────────────────────────────────────────────────
-
-            // Lowered from 0.5 → 0.3: typical webcam pose landmarks are often 0.3-0.5
             const MIN_VIS = 0.3;
             const vis = (lm: Landmark) => lm.visibility ?? 1;
 
-            // Landmarks Kalidokit used to compute RightUpperArm (MediaPipe LEFT side)
-            const kRS = poseLandmarks[11]; // LEFT_SHOULDER  → drives VRM rightUpperArm
-            const kRE = poseLandmarks[13]; // LEFT_ELBOW     → drives VRM rightUpperArm
-            const kRW = poseLandmarks[15]; // LEFT_WRIST     → drives VRM rightLowerArm
+            const kRS = poseLandmarks[11]; const kRE = poseLandmarks[13]; const kRW = poseLandmarks[15];
+            const kLS = poseLandmarks[12]; const kLE = poseLandmarks[14]; const kLW = poseLandmarks[16];
 
-            // Landmarks Kalidokit used to compute LeftUpperArm (MediaPipe RIGHT side)
-            const kLS = poseLandmarks[12]; // RIGHT_SHOULDER → drives VRM leftUpperArm
-            const kLE = poseLandmarks[14]; // RIGHT_ELBOW    → drives VRM leftUpperArm
-            const kLW = poseLandmarks[16]; // RIGHT_WRIST    → drives VRM leftLowerArm
-
-            // RIGHT ARM — gated on MediaPipe LEFT landmarks (Kalidokit convention)
+            // RIGHT ARM
             if (vis(kRS) >= MIN_VIS && vis(kRE) >= MIN_VIS && poseRig.RightUpperArm) {
                 rigRotation(getBone("rightUpperArm"), poseRig.RightUpperArm, 1, lerpFactor);
             }
@@ -250,12 +229,25 @@ export const initVrmScene = async (
                 rigRotation(getBone("rightLowerArm"), poseRig.RightLowerArm, 1, lerpFactor);
             }
 
-            // LEFT ARM — gated on MediaPipe RIGHT landmarks (Kalidokit convention)
+            // LEFT ARM
             if (vis(kLS) >= MIN_VIS && vis(kLE) >= MIN_VIS && poseRig.LeftUpperArm) {
                 rigRotation(getBone("leftUpperArm"), poseRig.LeftUpperArm, 1, lerpFactor);
             }
             if (vis(kLE) >= MIN_VIS && vis(kLW) >= MIN_VIS && poseRig.LeftLowerArm) {
                 rigRotation(getBone("leftLowerArm"), poseRig.LeftLowerArm, 1, lerpFactor);
+            }
+
+            // ── Wrist from pose (doc.txt: calcArms Hand.r/l) ────────────────────────────
+            // poseRig.RightHand = findRotation(lm[15], lerp(lm[17], lm[19], 0.5))
+            // poseRig.LeftHand  = findRotation(lm[16], lerp(lm[18], lm[20], 0.5))
+            // Coarser than hand-landmark wrist but provides fallback when hands are
+            // off-screen. updateFromLandmarks overwrites these bones when hands are visible.
+            // ────────────────────────────────────────────────────────────────────────────
+            if (vis(kRE) >= MIN_VIS && vis(kRW) >= MIN_VIS && poseRig.RightHand) {
+                rigRotation(getBone("rightHand"), poseRig.RightHand, 0.7, lerpFactor);
+            }
+            if (vis(kLE) >= MIN_VIS && vis(kLW) >= MIN_VIS && poseRig.LeftHand) {
+                rigRotation(getBone("leftHand"), poseRig.LeftHand, 0.7, lerpFactor);
             }
         },
 
