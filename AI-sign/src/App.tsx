@@ -19,7 +19,7 @@ import { findBestMatch, validateSign } from "./utils";
 // ============================================================================
 
 // Detection loop frequency (lower = less CPU/GPU, but also less responsive)
-const DETECTION_INTERVAL_MS = 50; // ~20 FPS
+const DETECTION_INTERVAL_MS = 33; // ~20 FPS
 
 // Sentence + prediction stability
 const COMMIT_MS = 1200;      // time to hold same word to commit
@@ -30,7 +30,7 @@ const HISTORY_MIN_VOTES = 4; // required votes in history to accept a stable pre
 
 // Pose smoothing (for body / avatar)
 // Lower alpha = smoother output with less jitter (at cost of slight lag)
-const POSE_SMOOTHING_ALPHA = 0.35;
+const POSE_SMOOTHING_ALPHA = 0.55;
 // Ignore landmark movements smaller than this — filters micro-jitter
 const POSE_DEADZONE = 0.003;
 
@@ -500,14 +500,22 @@ const DeepMotionDemo: React.FC = () => {
                 setCurrentLandmarks(detectedHand);
 
                 if (showAvatar && vrmControllerRef.current) {
+                    const detectedSides = new Set<"Left" | "Right">();
                     for (let i = 0; i < handLm.length; i++) {
                         const landmarks = handLm[i] as Landmark[];
-                        const handednessLabel =
-                            (handResults.handedness?.[i]?.[0]?.categoryName ??
-                                handResults.handednesses?.[i]?.[0]?.categoryName ??
-                                "Right") as "Left" | "Right";
+                        const rawHandedness =
+                            handResults.handedness?.[i]?.[0]?.categoryName ??
+                            handResults.handednesses?.[i]?.[0]?.categoryName ??
+                            "Right";
+                        // MediaPipe reports handedness from the person's perspective directly —
+                        // no flip needed. Pass it straight to Kalidokit and VRM.
+                        const handednessLabel = rawHandedness as "Left" | "Right";
+                        detectedSides.add(handednessLabel);
                         vrmControllerRef.current.updateFromLandmarks(landmarks, handednessLabel);
                     }
+                    // Reset fingers for any hand that left the frame this tick
+                    if (!detectedSides.has("Right")) vrmControllerRef.current.resetFingers?.("Right");
+                    if (!detectedSides.has("Left")) vrmControllerRef.current.resetFingers?.("Left");
                 }
 
                 if (samples.length > 0) {
@@ -590,6 +598,9 @@ const DeepMotionDemo: React.FC = () => {
             } else {
                 setPrediction("");
                 setStablePrediction("");
+                if (showAvatar && vrmControllerRef.current?.resetFingers) {
+                    vrmControllerRef.current.resetFingers();
+                }
             }
         }
     }, [
