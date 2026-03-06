@@ -1,7 +1,6 @@
 ﻿import './HomePage.css';
 import { Link } from 'react-router-dom';
-import React, { useEffect, useRef } from 'react';
-
+import { useEffect, useRef } from 'react';
 function HomePage() {
     const flashlightRef = useRef<HTMLDivElement | null>(null);
 
