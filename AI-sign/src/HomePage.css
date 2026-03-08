@@ -201,6 +201,51 @@
         color: white;
     }
 
+    /* --- Phân đoạn Auth mới --- */
+.user-nav-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem; /* Khoảng cách giữa chữ Chào và nút Logout */
+    margin-left: 0.5rem;
+    white-space: nowrap; /* Tuyệt đối không cho chữ nhảy xuống dòng */
+}
+
+.welcome-text {
+    font-size: 0.82rem;
+    color: #cbd5f5;
+}
+
+.logout-btn {
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    background-color: rgba(239, 68, 68, 0.1); /* Nền đỏ nhạt trong suốt */
+    color: #ef4444; /* Chữ đỏ */
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 160ms ease;
+}
+
+.logout-btn:hover {
+    background-color: #ef4444;
+    color: white;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+    transform: translateY(-1px);
+}
+
+/* Tùy chỉnh thêm cho các link Login/Register cũ */
+.nav-link-auth {
+    color: #cbd5f5;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 140ms ease;
+}
+
+.nav-link-auth:hover {
+    color: #f9fafb;
+}
+
 /* ===== HERO SECTION ===== */
 .hero {
     padding-top: 1.4rem;
@@ -790,7 +835,10 @@ button:hover ~ .flashlight-overlay,
     }
 
     .nav-links {
-        display: none;
+        display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    font-size: 0.84rem;
     }
 
     .hero {

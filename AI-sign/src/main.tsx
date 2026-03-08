@@ -6,6 +6,8 @@ import App from './App';
 import HomePage from './HomePage';
 import AdminExtraction from './AdminExtraction';
 import LessonPage from './LessonPage';
+import Login from './Login'; 
+import Register from './Register';
 
 createRoot(document.getElementById('root') as HTMLElement).render(
     <StrictMode>
@@ -15,6 +17,9 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                 <Route path="/translator" element={<App />} />
                 <Route path="/admin/extraction" element={<AdminExtraction />} />
                 <Route path="/lessons" element={<LessonPage />} />
+
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
             </Routes>
         </BrowserRouter>
     </StrictMode>

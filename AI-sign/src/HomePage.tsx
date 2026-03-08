@@ -1,10 +1,24 @@
 ﻿import './HomePage.css';
-import { Link } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef , useState} from 'react';
+import api from './api/axios';
+
 function HomePage() {
     const flashlightRef = useRef<HTMLDivElement | null>(null);
+    const navigate = useNavigate();
+
+    const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+    const [userName, setUserName] = useState<string>("");
+
+
 
     useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            setIsLoggedIn(true);
+            fetchUserProfile();
+        }
+
         const el = flashlightRef.current;
         if (!el) return;
 
@@ -18,6 +32,21 @@ function HomePage() {
         window.addEventListener('mousemove', handleMove);
         return () => window.removeEventListener('mousemove', handleMove);
     }, []);
+    const fetchUserProfile = async () => {
+        try {
+            const res = await api.get('/Auth/profile');
+            setUserName(res.data.name); 
+        } catch (err) {
+            console.error("Không lấy được profile:", err);
+            handleLogout();
+        }
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('token'); 
+        setIsLoggedIn(false); 
+        navigate('/'); 
+    };
 
     return (
         <div className="homepage">
@@ -36,6 +65,18 @@ function HomePage() {
                     <a href="#features">Features</a>
                     <Link to="/admin/extraction">Data Admin</Link>
                     <Link to="/lessons">Lesson</Link>
+
+                    {!isLoggedIn ? (
+                        <>
+                            <Link to="/login" className="nav-link-auth">Login</Link>
+                            <Link to="/register" className="nav-link-auth">Register</Link>
+                        </>
+                    ) : (
+                        <div className="user-nav-group">
+                            <span className="welcome-text">Chào, <strong className="hero-gradient">{userName}</strong>!</span>
+                            <button onClick={handleLogout} className="logout-btn">Logout</button>
+                        </div>
+                    )}
                 </nav>
                 <Link className="nav-cta" to="/translator">
                     Open translator

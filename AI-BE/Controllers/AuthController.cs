@@ -1,6 +1,7 @@
 ﻿using AI_BE.Data;
 using AI_BE.DTO;
 using AI_BE.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -91,6 +92,34 @@ namespace AI_BE.Controllers
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        [Authorize] 
+        [HttpGet("profile")] 
+        public async Task<IActionResult> GetProfile()
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                return Unauthorized("Token không hợp lệ hoặc thiếu thông tin.");
+            }
+
+            var learner = await _context.Learners.FindAsync(Guid.Parse(userIdClaim));
+
+            if (learner == null)
+            {
+                return NotFound("Không tìm thấy thông tin người dùng.");
+            }
+
+            return Ok(new
+            {
+                learner.Id,
+                learner.Name,
+                learner.Email,
+                learner.DateOfBirth,
+                learner.CreatedAt
+            });
         }
     }
 }
