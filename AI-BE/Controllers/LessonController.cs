@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using AI_BE.Models;
 using AI_BE.Data;
@@ -40,6 +41,7 @@ public class LessonsController : ControllerBase
     }
 
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<ActionResult<Lesson>> Create(Lesson lesson)
     {
@@ -50,6 +52,7 @@ public class LessonsController : ControllerBase
     }
 
 
+    [Authorize(Roles = "Admin")]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, Lesson updatedLesson)
     {
@@ -77,6 +80,7 @@ public class LessonsController : ControllerBase
     }
 
  
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
@@ -90,6 +94,7 @@ public class LessonsController : ControllerBase
     }
 
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("{id}/add-signs")]
     public async Task<IActionResult> AddSignsToLesson(int id, [FromBody] List<int> signIds)
     {
@@ -109,6 +114,7 @@ public class LessonsController : ControllerBase
         return Ok(new { message = $"Đã thêm {signsToAdd.Count} ký hiệu vào bài học {lesson.Title}" });
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost("{lessonId}/assign-by-names")]
     public async Task<IActionResult> AssignSignsByNames(int lessonId, [FromBody] List<string> signNames)
     {

@@ -63,7 +63,7 @@ function HomePage() {
                     <a href="#learning-path">Learn</a>
                     <a href="#practice">Practice</a>
                     <a href="#features">Features</a>
-                    <Link to="/admin/extraction">Data Admin</Link>
+                    <Link to="/admin">Admin Dashboard</Link>
                     <Link to="/lessons">Lesson</Link>
 
                     {!isLoggedIn ? (

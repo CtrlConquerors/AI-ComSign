@@ -43,6 +43,10 @@ const Register: React.FC = () => {
                     <input type="password" className="auth-input" required
                         onChange={e => setFormData({ ...formData, password: e.target.value })} />
 
+                    <label className="auth-label">Phone Number</label>
+                    <input type="tel" className="auth-input" required
+                        onChange={e => setFormData({ ...formData, phoneNumber: e.target.value })} />
+
                     <label className="auth-label">Date of Birth</label>
                     <input type="date" className="auth-input" required
                         onChange={e => setFormData({ ...formData, dateOfBirth: e.target.value })} />

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 
 namespace AI_BE.Models
 {
@@ -12,5 +12,6 @@ namespace AI_BE.Models
         public string PasswordHash { get; set; } = string.Empty;
         public DateTime DateOfBirth { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public string Role { get; set; } = "Learner";
     }
 }

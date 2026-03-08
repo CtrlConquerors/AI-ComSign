@@ -1,4 +1,4 @@
-﻿using AI_BE.Data;
+using AI_BE.Data;
 using AI_BE.DTO;
 using AI_BE.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -79,7 +79,8 @@ namespace AI_BE.Controllers
                 new Claim(ClaimTypes.Email, learner.Email),
                 new Claim(ClaimTypes.NameIdentifier, learner.Id.ToString()),
                 new Claim("PhoneNumber", learner.PhoneNumber ?? ""),
-                new Claim("DateOfBirth", learner.DateOfBirth.ToString("yyyy-MM-dd"))
+                new Claim("DateOfBirth", learner.DateOfBirth.ToString("yyyy-MM-dd")),
+                new Claim(ClaimTypes.Role, learner.Role)
             };
 
             var jwtKey = _config["JwtSettings:Key"] ?? throw new InvalidOperationException("JWT Key missing");
@@ -118,7 +119,8 @@ namespace AI_BE.Controllers
                 learner.Name,
                 learner.Email,
                 learner.DateOfBirth,
-                learner.CreatedAt
+                learner.CreatedAt,
+                learner.Role
             });
         }
     }

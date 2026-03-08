@@ -1,6 +1,7 @@
 using AI_BE.Data;
 using AI_BE.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 namespace AI_BE.Controllers;
@@ -23,6 +24,7 @@ public class SignController : ControllerBase
         return Ok(signs);
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> SaveSign([FromBody] SignSample sign)
     {
@@ -62,6 +64,7 @@ public class SignController : ControllerBase
     /// <summary>
     /// Batch save multiple samples
     /// </summary>
+    [Authorize(Roles = "Admin")]
     [HttpPost("batch")]
     public async Task<IActionResult> SaveBatch([FromBody] List<SignSample> samples)
     {
@@ -84,6 +87,7 @@ public class SignController : ControllerBase
     /// <summary>
     /// Delete all samples for a specific sign
     /// </summary>
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{signName}")]
     public async Task<IActionResult> DeleteBySign(string signName)
     {
