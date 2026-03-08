@@ -1,12 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using AI_BE.Models;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
 namespace AI_BE.Data;
 
 public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
-
+    public DbSet<Learner> Learners => Set<Learner>();
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<SignSample> SignSamples { get; set; }
 
