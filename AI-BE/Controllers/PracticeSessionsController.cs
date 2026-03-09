@@ -101,8 +101,8 @@ public class PracticeSessionsController : ControllerBase
         if (session == null) return NotFound("Session not found.");
         if (session.LearnerId != GetCallerId()) return Forbid();
 
-        // TotalSigns = authoritative count from lesson (not attempt count)
-        int totalSigns = session.Lesson?.Signs.Count ?? 0;
+        // TotalSigns = distinct sign names in the lesson (not raw sample count)
+        int totalSigns = session.Lesson?.Signs.Select(s => s.SignName).Distinct().Count() ?? 0;
         int passedSigns = session.Attempts.Count(a => a.Passed && !a.IsSkipped);
         decimal passRate = totalSigns > 0
             ? Math.Round((decimal)passedSigns / totalSigns * 100, 1)

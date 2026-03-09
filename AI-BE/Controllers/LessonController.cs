@@ -147,5 +147,22 @@ public class LessonsController : ControllerBase
         });
     }
 
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("{lessonId}/signs/by-name/{signName}")]
+    public async Task<IActionResult> RemoveSignFromLesson(int lessonId, string signName)
+    {
+        var signs = await _context.SignSamples
+            .Where(s => s.LessonId == lessonId && s.SignName == signName)
+            .ToListAsync();
+
+        if (!signs.Any()) return NotFound(new { message = "Sign not found in this lesson." });
+
+        foreach (var sign in signs)
+            sign.LessonId = null;
+
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
     private bool LessonExists(int id) => _context.Lessons.Any(e => e.Id == id);
 }

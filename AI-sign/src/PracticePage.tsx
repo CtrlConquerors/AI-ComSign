@@ -21,7 +21,7 @@ const PracticePage: React.FC = () => {
     useEffect(() => {
         const load = async () => {
             try {
-                const res = await api.get<LessonDto[]>('/lesson');
+                const res = await api.get<LessonDto[]>('/lessons');
                 setLessons(res.data);
             } catch {
                 setError('Failed to load lessons.');

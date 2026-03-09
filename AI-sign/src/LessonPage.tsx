@@ -85,7 +85,14 @@ const LessonPage: React.FC = () => {
                 );
             }
             const data: LessonSignDto[] = await res.json();
-            setLessonSigns(data);
+            // Keep one representative sample per unique sign name
+            const seen = new Set<string>();
+            const unique = data.filter(s => {
+                if (seen.has(s.signName)) return false;
+                seen.add(s.signName);
+                return true;
+            });
+            setLessonSigns(unique);
         } catch (err: unknown) {
             const message =
                 err instanceof Error ? err.message : 'Failed to load lesson signs';
@@ -139,7 +146,7 @@ const LessonPage: React.FC = () => {
                         <div className="section-head">
                             <p className="eyebrow">Lessons</p>
                             {loadingLessons && (
-                                <p className="loading-text">Loading lessons…</p>
+                                <p className="loading-text">Loading lessonsï¿½</p>
                             )}
                             {lessonsError && (
                                 <p className="loading-text" style={{ color: '#f97373' }}>
@@ -199,7 +206,7 @@ const LessonPage: React.FC = () => {
                         {selectedLessonId && (
                             <>
                                 {loadingSigns && (
-                                    <p className="loading-text">Loading signs…</p>
+                                    <p className="loading-text">Loading signsï¿½</p>
                                 )}
                                 {signsError && (
                                     <p className="loading-text" style={{ color: '#f97373' }}>

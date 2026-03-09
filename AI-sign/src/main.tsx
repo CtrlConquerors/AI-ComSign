@@ -15,6 +15,7 @@ import PracticeHistoryPage from './PracticeHistoryPage';
 import AdminLayout from './admin/AdminLayout';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminUsers from './admin/AdminUsers';
+import AdminLessons from './admin/AdminLessons';
 import ProtectedRoute from './admin/ProtectedRoute';
 
 createRoot(document.getElementById('root') as HTMLElement).render(
@@ -64,7 +65,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                 >
                     <Route index element={<AdminDashboard />} />
                     <Route path="users" element={<AdminUsers />} />
-                    <Route path="lessons" element={<LessonPage />} />
+                    <Route path="lessons" element={<AdminLessons />} />
                     <Route path="extraction" element={<AdminExtraction />} />
                 </Route>
             </Routes>
