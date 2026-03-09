@@ -20,20 +20,23 @@ import { findBestMatch, validateSign } from "./utils";
 // ============================================================================
 
 // Detection loop frequency (lower = less CPU/GPU, but also less responsive)
-const DETECTION_INTERVAL_MS = 33; // ~20 FPS
+const DETECTION_INTERVAL_MS = 43; // ~20 FPS
 
 // Sentence + prediction stability
 const COMMIT_MS = 1200;      // time to hold same word to commit
-const MIN_CONFIDENCE = 60;   // minimum confidence to auto-commit
+const MIN_CONFIDENCE = 70;   // minimum confidence to auto-commit
 const COOLDOWN_MS = 1200;    // wait before committing same word again
-const HISTORY_SIZE = 7;      // frames kept in history
-const HISTORY_MIN_VOTES = 4; // required votes in history to accept a stable prediction
+const HISTORY_SIZE = 10;      // frames kept in history
+const HISTORY_MIN_VOTES = 7; // required votes in history to accept a stable prediction
 
 // Pose smoothing (for body / avatar)
 // Lower alpha = smoother output with less jitter (at cost of slight lag)
-const POSE_SMOOTHING_ALPHA = 0.55;
+const POSE_SMOOTHING_ALPHA = 0.27;
 // Ignore landmark movements smaller than this — filters micro-jitter
 const POSE_DEADZONE = 0.003;
+
+// Ghost limb: hold last known hand pose before returning to rest
+const GHOST_LIMB_MS = 300;
 
 // ============================================================================
 // DISTANCE CALCULATION (kept here due to specific weights)
@@ -117,6 +120,7 @@ const DeepMotionDemo: React.FC = () => {
 
     // 3D avatar toggle + controller
     const [showAvatar, setShowAvatar] = useState<boolean>(false);
+    const [isAvatarLoaded, setIsAvatarLoaded] = useState<boolean>(false);
     const vrmControllerRef = useRef<VrmController | null>(null);
 
     const [isAiLoaded, setIsAiLoaded] = useState(false);
@@ -148,6 +152,9 @@ const DeepMotionDemo: React.FC = () => {
 
     // Smoothed pose landmarks over time (for stable body skeleton)
     const smoothedPoseRef = useRef<Landmark[] | null>(null);
+
+    // Ghost limb: track when each hand side was last detected
+    const lastHandDetectedTimeRef = useRef<Record<"Left" | "Right", number>>({ Left: 0, Right: 0 });
 
     // ========================================================================
     // INITIALIZATION
@@ -226,8 +233,11 @@ const DeepMotionDemo: React.FC = () => {
                 vrmControllerRef.current.dispose();
                 vrmControllerRef.current = null;
             }
+            setIsAvatarLoaded(false);
             return;
         }
+
+        setIsAvatarLoaded(false); // show spinner immediately on open
 
         const container = document.getElementById("vrm-avatar-container");
         if (!container) return;
@@ -236,8 +246,10 @@ const DeepMotionDemo: React.FC = () => {
             try {
                 const controller = await initVrmScene(container, "/Model3D.vrm");
                 vrmControllerRef.current = controller;
+                setIsAvatarLoaded(true);
             } catch (e) {
                 console.error("Failed to init VRM scene", e);
+                setIsAvatarLoaded(true); // unblock UI even on error
             }
         };
 
@@ -399,17 +411,28 @@ const DeepMotionDemo: React.FC = () => {
                 [16, 18], [16, 20], [16, 22],  // right wrist → pinky / index / thumb
             ];
 
-            const MIN_DRAW_VIS = 0.3;
-
-            canvasCtx.strokeStyle = "#00BFFF";
-            canvasCtx.lineWidth = 3;
+            // Ghost limb: bone disappears when confidence drops below MIN_VIS,
+            // and fades in/out smoothly over FADE_RANGE above that threshold.
+            const MIN_VIS = 0.5;
+            const FADE_RANGE = 0.2;
+            const getAlpha = (vis: number) =>
+                vis < MIN_VIS ? 0 : Math.min(1, (vis - MIN_VIS) / FADE_RANGE);
 
             connections.forEach(([a, b]) => {
                 const p1 = poseLandmarks[a];
                 const p2 = poseLandmarks[b];
                 if (!p1 || !p2) return;
-                if ((p1.visibility ?? 1) < MIN_DRAW_VIS || (p2.visibility ?? 1) < MIN_DRAW_VIS) return;
 
+                // Both endpoints must be visible — weakest one drives the fade
+                const alpha = Math.min(
+                    getAlpha(p1.visibility ?? 1),
+                    getAlpha(p2.visibility ?? 1)
+                );
+                if (alpha <= 0) return;
+
+                canvasCtx.globalAlpha = alpha;
+                canvasCtx.strokeStyle = "#00BFFF";
+                canvasCtx.lineWidth = 3;
                 canvasCtx.beginPath();
                 canvasCtx.moveTo(p1.x * width, p1.y * height);
                 canvasCtx.lineTo(p2.x * width, p2.y * height);
@@ -422,15 +445,22 @@ const DeepMotionDemo: React.FC = () => {
                 jointIndices.add(b);
             });
 
-            canvasCtx.fillStyle = "#FF0088";
             jointIndices.forEach((i) => {
                 const p = poseLandmarks[i];
-                if (!p || (p.visibility ?? 1) < MIN_DRAW_VIS) return;
+                if (!p) return;
 
+                const alpha = getAlpha(p.visibility ?? 1);
+                if (alpha <= 0) return;
+
+                canvasCtx.globalAlpha = alpha;
+                canvasCtx.fillStyle = "#FF0088";
                 canvasCtx.beginPath();
                 canvasCtx.arc(p.x * width, p.y * height, 5, 0, 2 * Math.PI);
                 canvasCtx.fill();
             });
+
+            // Always restore alpha so other canvas draws aren't affected
+            canvasCtx.globalAlpha = 1;
         };
 
         if (!cameraEnabled) {
@@ -466,7 +496,7 @@ const DeepMotionDemo: React.FC = () => {
                 poseResults = poseLandmarker.detectForVideo(video, nowInMs);
             }
 
-                        const canvasCtx = canvasRef.current.getContext("2d");
+            const canvasCtx = canvasRef.current.getContext("2d");
             canvasRef.current.width = video.videoWidth;
             canvasRef.current.height = video.videoHeight;
 
@@ -512,11 +542,19 @@ const DeepMotionDemo: React.FC = () => {
                         // no flip needed. Pass it straight to Kalidokit and VRM.
                         const handednessLabel = rawHandedness as "Left" | "Right";
                         detectedSides.add(handednessLabel);
+                        // Ghost limb: stamp when this side was last actively tracked
+                        lastHandDetectedTimeRef.current[handednessLabel] = nowInMs;
                         vrmControllerRef.current.updateFromLandmarks(landmarks, handednessLabel);
                     }
-                    // Reset fingers for any hand that left the frame this tick
-                    if (!detectedSides.has("Right")) vrmControllerRef.current.resetFingers?.("Right");
-                    if (!detectedSides.has("Left")) vrmControllerRef.current.resetFingers?.("Left");
+                    // Ghost limb: only reset fingers once the hold window has expired
+                    (["Left", "Right"] as const).forEach((side) => {
+                        if (
+                            !detectedSides.has(side) &&
+                            nowInMs - lastHandDetectedTimeRef.current[side] > GHOST_LIMB_MS
+                        ) {
+                            vrmControllerRef.current!.resetFingers?.(side);
+                        }
+                    });
                 }
 
                 if (samples.length > 0) {
@@ -599,8 +637,13 @@ const DeepMotionDemo: React.FC = () => {
             } else {
                 setPrediction("");
                 setStablePrediction("");
+                // Ghost limb: only reset fingers once the hold window has expired
                 if (showAvatar && vrmControllerRef.current?.resetFingers) {
-                    vrmControllerRef.current.resetFingers();
+                    (["Left", "Right"] as const).forEach((side) => {
+                        if (nowInMs - lastHandDetectedTimeRef.current[side] > GHOST_LIMB_MS) {
+                            vrmControllerRef.current!.resetFingers!(side);
+                        }
+                    });
                 }
             }
         }
@@ -773,6 +816,15 @@ const DeepMotionDemo: React.FC = () => {
 
                 <section className="video-section">
                     <div className="video-frame">
+                        {/* ── AI model lazy-load overlay ── */}
+                        {!isAiLoaded && (
+                            <div className="ai-loading-overlay">
+                                <div className="ai-loading-spinner" />
+                                <p className="ai-loading-text">Loading AI model…</p>
+                                <small className="ai-loading-sub">Usually takes 3–4 seconds</small>
+                            </div>
+                        )}
+
                         {cameraEnabled ? (
                             <>
                                 <Webcam
@@ -818,11 +870,21 @@ const DeepMotionDemo: React.FC = () => {
                         </span>
                     </div>
                 </section>
-                
+
                 {showAvatar && (
-                    <section className="avatar-section">
+                    <section className="avatar-section avatar-section--expand">
                         <div className="avatar-frame">
-                            <div id="vrm-avatar-container" className="avatar-canvas-container" />
+                            {/* Wrapper keeps the loading overlay positioned over the Three.js canvas */}
+                            <div className="avatar-canvas-wrapper">
+                                {!isAvatarLoaded && (
+                                    <div className="ai-loading-overlay">
+                                        <div className="ai-loading-spinner" />
+                                        <p className="ai-loading-text">Loading 3D avatar…</p>
+                                        <small className="ai-loading-sub">Setting up the VRM scene</small>
+                                    </div>
+                                )}
+                                <div id="vrm-avatar-container" className="avatar-canvas-container" />
+                            </div>
                         </div>
                     </section>
                 )}

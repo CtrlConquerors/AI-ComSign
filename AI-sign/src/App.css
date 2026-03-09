@@ -562,7 +562,98 @@ body {
     width: 100%;
     height: 100%;
 }
+/* ── AI model lazy-load overlay on canvas ─────────────────────────────────── */
+.ai-loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(5, 8, 20, 0.88);
+    backdrop-filter: blur(6px);
+    border-radius: inherit;
+}
 
+.ai-loading-spinner {
+    width: 52px;
+    height: 52px;
+    border: 4px solid rgba(255, 255, 255, 0.12);
+    border-top-color: #00bfff;
+    border-radius: 50%;
+    animation: ai-spin 0.85s linear infinite;
+}
+
+@keyframes ai-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ai-loading-text {
+    margin: 0;
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.ai-loading-sub {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.78rem;
+}
+/* ── Avatar section: smooth expand on mount ───────────────────────────────── */
+.avatar-section--expand {
+    animation: avatar-expand 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    overflow: hidden;
+}
+
+@keyframes avatar-expand {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Avatar canvas wrapper: anchor for the loading overlay ────────────────── */
+.avatar-canvas-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+
+
+/* ── Avatar section: smooth expand on mount ───────────────────────────────── */
+.avatar-section--expand {
+    animation: avatar-expand 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    overflow: hidden;
+}
+
+@keyframes avatar-expand {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Avatar canvas wrapper: anchor for the loading overlay ────────────────── */
+.avatar-canvas-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
 /* ========== RESPONSIVE ========== */
 
 @media (max-width: 900px) {
