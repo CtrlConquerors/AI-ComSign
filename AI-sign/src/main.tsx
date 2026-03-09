@@ -9,6 +9,9 @@ import LessonPage from './LessonPage';
 import Login from './Login'; 
 import Register from './Register';
 
+import PracticePage from './PracticePage';
+import PracticeSessionPage from './PracticeSessionPage';
+import PracticeHistoryPage from './PracticeHistoryPage';
 import AdminLayout from './admin/AdminLayout';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminUsers from './admin/AdminUsers';
@@ -21,6 +24,31 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                 <Route path="/" element={<HomePage />} />
                 <Route path="/translator" element={<App />} />
                 <Route path="/lessons" element={<LessonPage />} />
+
+                <Route
+                    path="/practice"
+                    element={
+                        <ProtectedRoute allowedRoles={["Learner", "Admin"]}>
+                            <PracticePage />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/practice/session"
+                    element={
+                        <ProtectedRoute allowedRoles={["Learner", "Admin"]}>
+                            <PracticeSessionPage />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/practice/history"
+                    element={
+                        <ProtectedRoute allowedRoles={["Learner", "Admin"]}>
+                            <PracticeHistoryPage />
+                        </ProtectedRoute>
+                    }
+                />
 
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />

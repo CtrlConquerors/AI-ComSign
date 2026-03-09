@@ -61,7 +61,7 @@ function HomePage() {
                 </Link>
                 <nav className="nav-links">
                     <a href="#learning-path">Learn</a>
-                    <a href="#practice">Practice</a>
+                    <Link to="/practice">Practice</Link>
                     <a href="#features">Features</a>
                     <Link to="/admin">Admin Dashboard</Link>
                     <Link to="/lessons">Lesson</Link>

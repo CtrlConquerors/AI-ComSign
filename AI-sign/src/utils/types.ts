@@ -72,3 +72,77 @@ export interface MatchResult {
   sampleCount: number;
   confidence: number;
 }
+
+// ============================================================================
+// Practice / Grading types
+// ============================================================================
+
+export interface SessionStartedDto {
+  sessionId: number;
+  signNames: string[];
+}
+
+export interface AttemptDto {
+  signName: string;
+  score: number;
+  passed: boolean;
+  isSkipped: boolean;
+}
+
+export interface AttemptSummary {
+  signName: string;
+  score: number;
+  passed: boolean;
+  isSkipped: boolean;
+}
+
+export interface SessionSummaryDto {
+  sessionId: number;
+  lessonTitle: string;
+  totalSigns: number;
+  passedSigns: number;
+  passRate: number;
+  startDate: string;
+  endDate: string | null;
+  attempts: AttemptSummary[];
+}
+
+export interface PracticeSessionDto {
+  id: number;
+  lessonTitle: string;
+  startDate: string;
+  endDate: string | null;
+  totalSigns: number;
+  passedSigns: number;
+  passRate: number;
+  attempts: AttemptSummary[];
+}
+
+export interface PerLearnerStat {
+  learnerId: string;
+  name: string;
+  sessionCount: number;
+  avgPassRate: number;
+}
+
+export interface PerLessonStat {
+  lessonId: number;
+  title: string;
+  avgPassRate: number;
+  hardestSigns: string[];
+}
+
+export interface PerSignStat {
+  signName: string;
+  totalAttempts: number;
+  passCount: number;
+  skipCount: number;
+  passRate: number;
+  skipRate: number;
+}
+
+export interface AdminPracticeStatsDto {
+  perLearner: PerLearnerStat[];
+  perLesson: PerLessonStat[];
+  perSign: PerSignStat[];
+}

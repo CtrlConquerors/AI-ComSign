@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using AI_BE.Models;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
 namespace AI_BE.Data;
 
@@ -10,7 +9,6 @@ public class AppDbContext : DbContext
     public DbSet<Learner> Learners => Set<Learner>();
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<SignSample> SignSamples { get; set; }
-
     public DbSet<PracticeSession> PracticeSessions => Set<PracticeSession>();
     public DbSet<Attempt> Attempts => Set<Attempt>();
 
@@ -38,6 +36,18 @@ public class AppDbContext : DbContext
             .HasMany(p => p.Attempts)
             .WithOne(a => a.Session)
             .HasForeignKey(a => a.SessionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PracticeSession>()
+            .HasOne(p => p.Lesson)
+            .WithMany()
+            .HasForeignKey(p => p.LessonId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<PracticeSession>()
+            .HasOne<Learner>()
+            .WithMany()
+            .HasForeignKey(p => p.LearnerId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

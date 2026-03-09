@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AI_BE.Models;
@@ -12,12 +12,15 @@ public class Attempt
     [ForeignKey("SessionId")]
     public PracticeSession? Session { get; set; }
 
-    public int SignId { get; set; }
+    public int? SignId { get; set; }
 
     [ForeignKey("SignId")]
     public SignSample? Sign { get; set; }
 
+    public string SignName { get; set; } = string.Empty;
     public float Score { get; set; }
+    public bool Passed { get; set; }
+    public bool IsSkipped { get; set; }
     public string? Feedback { get; set; }
 
     [Column(TypeName = "jsonb")]

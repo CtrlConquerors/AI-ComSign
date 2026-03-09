@@ -12,6 +12,17 @@ export type {
 } from './types';
 
 export { DEFAULT_EXTRACTION_CONFIG } from './types';
+export type {
+  SessionStartedDto,
+  AttemptDto,
+  AttemptSummary,
+  SessionSummaryDto,
+  PracticeSessionDto,
+  PerLearnerStat,
+  PerLessonStat,
+  PerSignStat,
+  AdminPracticeStatsDto,
+} from './types';
 
 // Augmentation
 export {

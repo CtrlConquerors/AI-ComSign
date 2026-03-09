@@ -1,0 +1,385 @@
+/* ============================================================
+   Practice.css — Grading / Practice Mode styles
+   Note: .practice-video and .practice-canvas are mirrored here
+   (front camera — natural selfie reflection).
+   Do NOT add scaleX(-1) to App.css; /translator must stay unmirrored.
+   ============================================================ */
+
+/* Mirror the webcam so the learner sees a natural reflection */
+.practice-video,
+.practice-canvas {
+    transform: scaleX(-1);
+}
+
+/* ── Page shell ─────────────────────────────────────────────── */
+.practice-root {
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 3rem 1.25rem 2.5rem;
+    background: #020617;
+    color: #e5e7eb;
+}
+
+.practice-shell {
+    width: 100%;
+    max-width: 900px;
+}
+
+/* ── Section headers ────────────────────────────────────────── */
+.practice-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 0.3rem;
+}
+
+.practice-subtitle {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    margin-bottom: 2rem;
+}
+
+/* ── Lesson picker grid ─────────────────────────────────────── */
+.lesson-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.lesson-card {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 14px;
+    padding: 1.4rem 1.2rem;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s, background 0.2s;
+}
+
+.lesson-card:hover {
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.06);
+    transform: translateY(-2px);
+}
+
+.lesson-card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 0.35rem;
+}
+
+.lesson-card-meta {
+    font-size: 0.78rem;
+    color: #64748b;
+    display: flex;
+    gap: 0.8rem;
+}
+
+.lesson-card-meta span {
+    background: rgba(100, 116, 139, 0.15);
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+}
+
+/* ── Practice session layout ────────────────────────────────── */
+.session-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+}
+
+.session-progress {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+}
+
+.session-progress strong {
+    color: #f1f5f9;
+}
+
+.session-prompt {
+    text-align: center;
+    margin-bottom: 1.25rem;
+}
+
+.session-prompt-label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #64748b;
+    margin-bottom: 0.4rem;
+}
+
+.session-target-sign {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #22c55e;
+    letter-spacing: 0.05em;
+}
+
+/* ── Detected prediction row ────────────────────────────────── */
+.session-detected {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: 2rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #94a3b8;
+}
+
+.session-detected .detected-sign {
+    color: #f8fafc;
+    font-weight: 600;
+}
+
+.session-detected .detected-confidence {
+    color: #38bdf8;
+    font-size: 0.8rem;
+}
+
+.session-detected.is-match .detected-sign {
+    color: #22c55e;
+}
+
+/* ── Video frame ────────────────────────────────────────────── */
+.session-video-frame {
+    position: relative;
+    width: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #0f172a;
+    aspect-ratio: 4/3;
+    margin-bottom: 1.25rem;
+}
+
+.session-video-frame .practice-video,
+.session-video-frame .practice-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* ── Action buttons ─────────────────────────────────────────── */
+.session-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+}
+
+/* ── Result overlay ─────────────────────────────────────────── */
+.result-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    background: rgba(2, 6, 23, 0.82);
+    backdrop-filter: blur(4px);
+    border-radius: 16px;
+    z-index: 10;
+}
+
+.result-badge {
+    font-size: 1.4rem;
+    font-weight: 700;
+    padding: 0.6rem 1.4rem;
+    border-radius: 999px;
+}
+
+.result-badge.pass {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    border: 1px solid #22c55e55;
+}
+
+.result-badge.fail {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid #ef444455;
+}
+
+.result-badge.skip {
+    background: rgba(148, 163, 184, 0.12);
+    color: #94a3b8;
+    border: 1px solid #64748b55;
+}
+
+.result-confidence {
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+
+/* ── Session summary ────────────────────────────────────────── */
+.summary-shell {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 18px;
+    padding: 2rem;
+}
+
+.summary-score {
+    text-align: center;
+    margin-bottom: 1.75rem;
+}
+
+.summary-score-pct {
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: #22c55e;
+    line-height: 1;
+}
+
+.summary-score-label {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-top: 0.3rem;
+}
+
+.summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    margin-bottom: 1.75rem;
+}
+
+.summary-table th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    color: #64748b;
+    font-weight: 500;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.summary-table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+    color: #cbd5e1;
+}
+
+.badge-pass { color: #22c55e; }
+.badge-fail { color: #f87171; }
+.badge-skip { color: #94a3b8; }
+
+.summary-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+}
+
+/* ── History page ───────────────────────────────────────────── */
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.history-row {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.history-row-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.history-row-header:hover {
+    background: rgba(34, 197, 94, 0.04);
+}
+
+.history-row-title {
+    font-weight: 600;
+    color: #f1f5f9;
+    font-size: 0.95rem;
+}
+
+.history-row-meta {
+    font-size: 0.78rem;
+    color: #64748b;
+    margin-top: 0.15rem;
+}
+
+.history-row-score {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #22c55e;
+    white-space: nowrap;
+}
+
+.history-row-detail {
+    padding: 0.75rem 1.25rem 1rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.1);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.sign-chip {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    background: rgba(100, 116, 139, 0.12);
+}
+
+.sign-chip.pass { color: #22c55e; border: 1px solid #22c55e33; }
+.sign-chip.fail { color: #f87171; border: 1px solid #ef444433; }
+.sign-chip.skip { color: #94a3b8; border: 1px solid #64748b33; }
+
+/* ── Loading overlay (reused from App.tsx pattern) ──────────── */
+.practice-loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    background: rgba(2, 6, 23, 0.88);
+    border-radius: 16px;
+    z-index: 20;
+}
+
+.practice-loading-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(148, 163, 184, 0.2);
+    border-top-color: #22c55e;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.practice-loading-text {
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+/* ── Admin sign classification colors ───────────────────────── */
+.sign-ghost td { background: rgba(234, 179, 8, 0.06); }
+.sign-ghost .sign-name-cell { color: #eab308; }
+
+.sign-broken td { background: rgba(239, 68, 68, 0.06); }
+.sign-broken .sign-name-cell { color: #f87171; }
+
+.sign-solid td { background: rgba(34, 197, 94, 0.04); }
+.sign-solid .sign-name-cell { color: #22c55e; }

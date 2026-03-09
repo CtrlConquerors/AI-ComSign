@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using AI_BE.Data;
 using AI_BE.Models;
@@ -17,9 +17,8 @@ public class ProgressController : ControllerBase
     }
 
     [HttpGet("{userId}/statistics")]
-    public async Task<IActionResult> GetStatistics(int userId)
+    public async Task<IActionResult> GetStatistics(Guid userId)
     {
-
         var userAttempts = await _context.Attempts
             .Include(a => a.Sign)
             .Where(a => a.Session!.LearnerId == userId)
@@ -27,7 +26,6 @@ public class ProgressController : ControllerBase
 
         if (!userAttempts.Any()) return Ok(new { message = "Chưa có dữ liệu luyện tập." });
 
-   
         var lessons = await _context.Lessons.Include(l => l.Signs).ToListAsync();
         int completedLessonsCount = 0;
         foreach (var lesson in lessons)
@@ -35,7 +33,7 @@ public class ProgressController : ControllerBase
             if (lesson.Signs.Count > 0)
             {
                 var practicedSignIds = userAttempts
-                    .Where(a => lesson.Signs.Select(s => s.Id).Contains(a.SignId))
+                    .Where(a => lesson.Signs.Select(s => s.Id).Contains(a.SignId ?? 0))
                     .Select(a => a.SignId)
                     .Distinct()
                     .Count();
@@ -44,13 +42,11 @@ public class ProgressController : ControllerBase
             }
         }
 
-
         var highestScoresPerSign = userAttempts
-            .GroupBy(a => a.Sign!.SignName)
+            .GroupBy(a => a.SignName)
             .Select(g => new { SignName = g.Key, MaxScore = g.Max(a => a.Score) })
             .ToList();
 
- 
         var progressTimeline = userAttempts
             .GroupBy(a => a.CreatedAt.Date)
             .Select(g => new {
@@ -70,13 +66,13 @@ public class ProgressController : ControllerBase
     }
 
     [HttpGet("{userId}/lecturer-summary")]
-    public async Task<IActionResult> GetLecturerSummary(int userId)
+    public async Task<IActionResult> GetLecturerSummary(Guid userId)
     {
         var attempts = await _context.Attempts.Where(a => a.Session!.LearnerId == userId).ToListAsync();
         if (!attempts.Any()) return Ok("Bắt đầu luyện tập để nhận đánh giá từ giảng viên.");
 
         double avgScore = attempts.Average(a => a.Score);
-        string evaluation = "";
+        string evaluation;
 
         if (avgScore >= 80)
             evaluation = "Tuyệt vời! Bạn đã nắm vững các ký hiệu cơ bản. Hãy tiếp tục duy trì độ chính xác này.";
@@ -91,7 +87,7 @@ public class ProgressController : ControllerBase
             .OrderBy(g => g.Avg)
             .FirstOrDefault();
 
-        if (weakestSign != null)
+        if (weakestSign?.SignId != null)
         {
             var signName = (await _context.SignSamples.FindAsync(weakestSign.SignId))?.SignName;
             evaluation += $" Đặc biệt, hãy tập trung cải thiện ký hiệu '{signName}'.";
