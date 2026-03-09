@@ -7,6 +7,20 @@ import {
 import { Link } from "react-router-dom";
 import "./AdminExtraction.css";
 
+const API_BASE = "http://localhost:5197";
+
+function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+    const token = localStorage.getItem("token");
+    return fetch(`${API_BASE}${path}`, {
+        ...init,
+        headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...init.headers,
+        },
+    });
+}
+
 // Import shared types and utilities
 import type { Landmark, SignSample, SignStats, ExtractionConfig } from "./utils";
 import {
@@ -39,7 +53,7 @@ const AdminExtraction: React.FC = () => {
     // Fetch dataset statistics from API (used by refresh button and initial load)
     const fetchStats = async () => {
         try {
-            const response = await fetch("/api/sign/stats");
+            const response = await authFetch("/api/sign/stats");
             if (response.ok) {
                 const data: SignStats[] = await response.json();
                 setStats(data);
@@ -70,7 +84,7 @@ const AdminExtraction: React.FC = () => {
 
         const loadInitialStats = async () => {
             try {
-                const response = await fetch("/api/sign/stats");
+                const response = await authFetch("/api/sign/stats");
                 if (response.ok) {
                     const data: SignStats[] = await response.json();
                     setStats(data);
@@ -84,11 +98,13 @@ const AdminExtraction: React.FC = () => {
         loadInitialStats();
     }, []);
 
-    // Extract sign name from filename
+    // Extract sign name from filename.
+    // Expected pattern: "{sign}_-_{id}_-_{source}.mp4"
+    // Falls back gracefully for bare names like "k.mp4".
     const cleanSignName = (fileName: string): string => {
-        const nameWithoutExt = fileName.split(".")[0].toLowerCase();
-        const simpleName = nameWithoutExt.split(/[-_]/)[0];
-        return simpleName;
+        const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
+        const signPart = nameWithoutExt.split("_-_")[0];
+        return signPart.replace(/_/g, " ").trim().toLowerCase();
     };
 
     // Helper to wait for video seek
@@ -241,11 +257,8 @@ const AdminExtraction: React.FC = () => {
         addLog(`☁️ Saving ${extractedData.length} samples to database...`);
 
         try {
-            const response = await fetch("/api/sign/batch", {
+            const response = await authFetch("/api/sign/batch", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
                 body: JSON.stringify(extractedData),
             });
 
@@ -270,7 +283,7 @@ const AdminExtraction: React.FC = () => {
         if (!confirm(`Delete all samples for "${signName}"?`)) return;
 
         try {
-            const response = await fetch(
+            const response = await authFetch(
                 `/api/sign/${encodeURIComponent(signName)}`,
                 { method: "DELETE" }
             );

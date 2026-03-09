@@ -49,36 +49,36 @@ const AdminDashboard: React.FC = () => {
     return (
         <div>
             {/* ── Overview cards ─────────────────────────────────────────── */}
-            <div className=admin-stats-grid>
-                <div className=admin-stat-card>
+            <div className="admin-stats-grid">
+                <div className="admin-stat-card">
                     <h3>Total Users</h3>
                     <p>{stats.totalUsers}</p>
                 </div>
-                <div className=admin-stat-card>
+                <div className="admin-stat-card">
                     <h3>Total Lessons</h3>
                     <p>{stats.totalLessons}</p>
                 </div>
-                <div className=admin-stat-card>
+                <div className="admin-stat-card">
                     <h3>Total Signs in Library</h3>
                     <p>{stats.totalSigns}</p>
                 </div>
             </div>
 
-            <div className=admin-table-container style={{ padding: '24px' }}>
+            <div className="admin-table-container" style={{ padding: '24px' }}>
                 <h2>Welcome to the Admin Dashboard</h2>
                 <p>Use the sidebar navigation to manage users, lessons, and the sign library.</p>
             </div>
 
             {/* ── Practice Stats ─────────────────────────────────────────── */}
             {practiceStats && (
-                <div className=admin-table-container style={{ padding: '24px' }}>
+                <div className="admin-table-container" style={{ padding: '24px' }}>
                     <h2 style={{ marginBottom: '1.5rem' }}>Practice Stats</h2>
 
                     {/* By Learner */}
                     <h3 style={{ color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
                         By Learner
                     </h3>
-                    <table className=summary-table style={{ marginBottom: '2rem' }}>
+                    <table className="summary-table" style={{ marginBottom: '2rem' }}>
                         <thead>
                             <tr>
                                 <th>Name</th>
@@ -106,7 +106,7 @@ const AdminDashboard: React.FC = () => {
                     <h3 style={{ color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
                         By Lesson
                     </h3>
-                    <table className=summary-table style={{ marginBottom: '2rem' }}>
+                    <table className="summary-table" style={{ marginBottom: '2rem' }}>
                         <thead>
                             <tr>
                                 <th>Lesson</th>
@@ -139,7 +139,7 @@ const AdminDashboard: React.FC = () => {
                             🟡 Ghost Sign (avoid but pass) &nbsp; 🔴 Broken Sign (fail + skip) &nbsp; 🟢 Solid
                         </span>
                     </h3>
-                    <table className=summary-table>
+                    <table className="summary-table">
                         <thead>
                             <tr>
                                 <th>Sign</th>
@@ -154,7 +154,7 @@ const AdminDashboard: React.FC = () => {
                             )}
                             {practiceStats.perSign.map(s => (
                                 <tr key={s.signName} className={signClass(s)}>
-                                    <td className=sign-name-cell>{s.signName}</td>
+                                    <td className="sign-name-cell">{s.signName}</td>
                                     <td>{s.totalAttempts}</td>
                                     <td>{s.passRate}%</td>
                                     <td>{s.skipRate}%</td>
