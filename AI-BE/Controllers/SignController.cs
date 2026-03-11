@@ -106,8 +106,13 @@ public class SignController : ControllerBase
     [HttpGet("lesson/{lessonId}")]
     public async Task<IActionResult> GetSignsByLesson(int lessonId)
     {
+        var signNames = await _context.LessonSigns
+            .Where(ls => ls.LessonId == lessonId)
+            .Select(ls => ls.SignName)
+            .ToListAsync();
+
         var signs = await _context.SignSamples
-            .Where(s => s.LessonId == lessonId)
+            .Where(s => signNames.Contains(s.SignName))
             .OrderBy(s => s.SignName)
             .ToListAsync();
 

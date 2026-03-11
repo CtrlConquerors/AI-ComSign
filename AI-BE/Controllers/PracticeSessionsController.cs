@@ -34,11 +34,11 @@ public class PracticeSessionsController : ControllerBase
         if (callerId is null) return Unauthorized();
 
         var lesson = await _context.Lessons
-            .Include(l => l.Signs)
+            .Include(l => l.LessonSigns)
             .FirstOrDefaultAsync(l => l.Id == dto.LessonId);
 
         if (lesson == null) return NotFound("Lesson not found.");
-        if (lesson.Signs.Count == 0) return BadRequest("Lesson has no signs to practice.");
+        if (lesson.LessonSigns.Count == 0) return BadRequest("Lesson has no signs to practice.");
 
         var session = new PracticeSession
         {
@@ -50,9 +50,8 @@ public class PracticeSessionsController : ControllerBase
         _context.PracticeSessions.Add(session);
         await _context.SaveChangesAsync();
 
-        var signNames = lesson.Signs
-            .Select(s => s.SignName)
-            .Distinct()
+        var signNames = lesson.LessonSigns
+            .Select(ls => ls.SignName)
             .ToList();
 
         return Ok(new SessionStartedDto
@@ -103,15 +102,15 @@ public class PracticeSessionsController : ControllerBase
 
         var session = await _context.PracticeSessions
             .Include(s => s.Lesson)
-                .ThenInclude(l => l!.Signs)
+                .ThenInclude(l => l!.LessonSigns)
             .Include(s => s.Attempts)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (session == null) return NotFound("Session not found.");
         if (session.LearnerId != callerId.Value) return Forbid();
 
-        // TotalSigns = distinct sign names in the lesson (not raw sample count)
-        int totalSigns = session.Lesson?.Signs.Select(s => s.SignName).Distinct().Count() ?? 0;
+        // TotalSigns = number of distinct sign names in the lesson
+        int totalSigns = session.Lesson?.LessonSigns.Count ?? 0;
         int passedSigns = session.Attempts.Count(a => a.Passed && !a.IsSkipped);
         decimal passRate = totalSigns > 0
             ? Math.Round((decimal)passedSigns / totalSigns * 100, 1)

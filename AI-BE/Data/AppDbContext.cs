@@ -6,8 +6,10 @@ namespace AI_BE.Data;
 public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
     public DbSet<Learner> Learners => Set<Learner>();
     public DbSet<Lesson> Lessons => Set<Lesson>();
+    public DbSet<LessonSign> LessonSigns => Set<LessonSign>();
     public DbSet<SignSample> SignSamples { get; set; }
     public DbSet<PracticeSession> PracticeSessions => Set<PracticeSession>();
     public DbSet<Attempt> Attempts => Set<Attempt>();
@@ -18,15 +20,19 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<Lesson>().ToTable("Lessons");
 
+        // LessonSign: composite primary key (LessonId, SignName)
+        modelBuilder.Entity<LessonSign>()
+            .HasKey(ls => new { ls.LessonId, ls.SignName });
+
+        modelBuilder.Entity<LessonSign>()
+            .HasOne(ls => ls.Lesson)
+            .WithMany(l => l.LessonSigns)
+            .HasForeignKey(ls => ls.LessonId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         modelBuilder.Entity<SignSample>()
             .Property(s => s.Landmarks)
             .HasColumnType("jsonb");
-
-        modelBuilder.Entity<Lesson>()
-            .HasMany(l => l.Signs)
-            .WithOne(s => s.Lesson)
-            .HasForeignKey(s => s.LessonId)
-            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Attempt>()
             .Property(a => a.RecordMotionData)

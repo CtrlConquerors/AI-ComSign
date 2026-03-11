@@ -26,19 +26,20 @@ public class ProgressController : ControllerBase
 
         if (!userAttempts.Any()) return Ok(new { message = "Chưa có dữ liệu luyện tập." });
 
-        var lessons = await _context.Lessons.Include(l => l.Signs).ToListAsync();
+        var lessons = await _context.Lessons.Include(l => l.LessonSigns).ToListAsync();
         int completedLessonsCount = 0;
         foreach (var lesson in lessons)
         {
-            if (lesson.Signs.Count > 0)
+            if (lesson.LessonSigns.Count > 0)
             {
-                var practicedSignIds = userAttempts
-                    .Where(a => lesson.Signs.Select(s => s.Id).Contains(a.SignId ?? 0))
-                    .Select(a => a.SignId)
+                var lessonSignNames = lesson.LessonSigns.Select(ls => ls.SignName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var practicedCount = userAttempts
+                    .Where(a => a.SignName != null && lessonSignNames.Contains(a.SignName))
+                    .Select(a => a.SignName)
                     .Distinct()
                     .Count();
 
-                if (practicedSignIds == lesson.Signs.Count) completedLessonsCount++;
+                if (practicedCount == lesson.LessonSigns.Count) completedLessonsCount++;
             }
         }
 
