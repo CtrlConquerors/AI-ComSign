@@ -4,6 +4,7 @@ using AI_BE.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -32,7 +33,7 @@ namespace AI_BE.Controllers
         {
             if (await _context.Learners.AnyAsync(l => l.Email == dto.Email))
             {
-                return BadRequest("Email đã tồn tại.");
+                return BadRequest("Email is already registered.");
             }
 
             var learner = new Learner
@@ -49,26 +50,23 @@ namespace AI_BE.Controllers
             _context.Learners.Add(learner);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Đăng ký Learner thành công!" });
+            return Ok(new { message = "Registration successful." });
         }
 
         [HttpPost("login")]
+        [EnableRateLimiting("login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
             var learner = await _context.Learners.FirstOrDefaultAsync(l => l.Email == dto.Email);
 
             if (learner == null || _passwordHasher.VerifyHashedPassword(learner, learner.PasswordHash, dto.Password) == PasswordVerificationResult.Failed)
             {
-                return Unauthorized("Email hoặc mật khẩu không đúng.");
+                return Unauthorized("Invalid email or password.");
             }
 
             var token = GenerateJwtToken(learner);
 
-            return Ok(new
-            {
-                token,
-                message = "Đăng nhập thành công!"
-            });
+            return Ok(new { token, message = "Login successful." });
         }
 
         private string GenerateJwtToken(Learner learner)
@@ -87,7 +85,9 @@ namespace AI_BE.Controllers
             var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
             var token = new JwtSecurityToken(
-                expires: DateTime.Now.AddDays(7),
+                issuer: "AI-ComSign",
+                audience: "AI-ComSign",
+                expires: DateTime.UtcNow.AddDays(7),
                 claims: authClaims,
                 signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
             );
@@ -95,22 +95,22 @@ namespace AI_BE.Controllers
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        [Authorize] 
-        [HttpGet("profile")] 
+        [Authorize]
+        [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
-            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-            if (string.IsNullOrEmpty(userIdClaim))
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
             {
-                return Unauthorized("Token không hợp lệ hoặc thiếu thông tin.");
+                return Unauthorized("Token is missing or contains an invalid user identifier.");
             }
 
-            var learner = await _context.Learners.FindAsync(Guid.Parse(userIdClaim));
+            var learner = await _context.Learners.FindAsync(userId);
 
             if (learner == null)
             {
-                return NotFound("Không tìm thấy thông tin người dùng.");
+                return NotFound("User not found.");
             }
 
             return Ok(new
