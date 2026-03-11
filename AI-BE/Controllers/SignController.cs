@@ -53,7 +53,6 @@ public class SignController : ControllerBase
             {
                 SignName = g.Key,
                 Count = g.Count(),
-                AugmentedCount = 0 // Placeholder for future IsAugmented field
             })
             .OrderBy(s => s.SignName)
             .ToListAsync();
