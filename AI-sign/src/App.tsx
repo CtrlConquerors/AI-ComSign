@@ -14,6 +14,8 @@ import "./App.css";
 import type { Landmark, SignSample, MatchResult } from "./utils";
 import { validateSign } from "./utils";
 import { groupBySign, findBestMatchGrouped } from "./utils/knnMatcher";
+import CalibrationOverlay from "./CalibrationOverlay";
+import "./Calibration.css";
 
 
 // ============================================================================
@@ -22,6 +24,7 @@ import { groupBySign, findBestMatchGrouped } from "./utils/knnMatcher";
 
 // Detection loop frequency (lower = less CPU/GPU, but also less responsive)
 const DETECTION_INTERVAL_MS = 43; // ~20 FPS
+const CALIBRATION_DURATION_MS = 2500; // Time user must stay in box to calibrate
 
 // Sentence + prediction stability
 const COMMIT_MS = 1200;      // time to hold same word to commit
@@ -127,6 +130,13 @@ const DeepMotionDemo: React.FC = () => {
     const [isAiLoaded, setIsAiLoaded] = useState(false);
     const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
     const [poseLandmarker, setPoseLandmarker] = useState<PoseLandmarker | null>(null);
+
+    // Calibration state
+    const [isCalibrated, setIsCalibrated] = useState(false);
+    const [isCorrectPosition, setIsCorrectPosition] = useState(false);
+    const [calibrationProgress, setCalibrationProgress] = useState(0);
+    const [poseLandmarks, setPoseLandmarks] = useState<Landmark[] | null>(null);
+    const calibrationStartTimeRef = useRef<number | null>(null);
 
     const [samples, setSamples] = useState<SignSample[]>([]);
     const groupedSamplesRef = useRef<Record<string, SignSample[]>>({});
@@ -511,9 +521,9 @@ const DeepMotionDemo: React.FC = () => {
             const handResults: HandLandmarkerResult =
                 handLandmarker.detectForVideo(video, nowInMs);
 
-            // Pose only when avatar is shown and pose model is ready
+            // Pose results for calibration or avatar
             let poseResults: PoseLandmarkerResult | null = null;
-            if (poseLandmarker && showAvatar) {
+            if (poseLandmarker) {
                 poseResults = poseLandmarker.detectForVideo(video, nowInMs);
             }
 
@@ -533,10 +543,56 @@ const DeepMotionDemo: React.FC = () => {
 
             canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
-            // ── POSE: always runs when avatar is shown, independent of hand detection ──
+            // ── Calibration Phase ─────────────────────────────────────────
+            if (!isCalibrated) {
+                if (poseResults && poseResults.landmarks?.length > 0) {
+                    const pose = poseResults.landmarks[0] as Landmark[];
+                    setPoseLandmarks(pose);
+
+                    const head = pose[0];
+                    const leftShoulder = pose[11];
+                    const rightShoulder = pose[12];
+
+                    // Check if head and shoulders are roughly centered
+                    const isHeadIn = head.x > 0.25 && head.x < 0.75 && head.y > 0.15 && head.y < 0.5;
+                    const isShouldersIn = leftShoulder.x > 0.2 && leftShoulder.x < 0.8 && 
+                                        rightShoulder.x > 0.2 && rightShoulder.x < 0.8;
+
+                    const correct = isHeadIn && isShouldersIn;
+                    setIsCorrectPosition(correct);
+
+                    if (correct) {
+                        if (calibrationStartTimeRef.current === null) {
+                            calibrationStartTimeRef.current = nowInMs;
+                        }
+                        const elapsed = nowInMs - calibrationStartTimeRef.current;
+                        const progress = Math.min(100, (elapsed / CALIBRATION_DURATION_MS) * 100);
+                        setCalibrationProgress(progress);
+
+                        if (progress >= 100) {
+                            setIsCalibrated(true);
+                        }
+                    } else {
+                        calibrationStartTimeRef.current = null;
+                        setCalibrationProgress(0);
+                    }
+                } else {
+                    setIsCorrectPosition(false);
+                    calibrationStartTimeRef.current = null;
+                    setCalibrationProgress(0);
+                }
+                
+                // Clear prediction states during calibration
+                setPrediction("");
+                setStablePrediction("");
+                setConfidence(0);
+                return;
+            }
+            
+            // ── Pose for Avatar ───────────────────────────────────────────
             let poseLm: Landmark[] | null = null;
             let worldLm: Landmark[] | null = null;
-            if (poseResults && poseResults.landmarks && poseResults.landmarks.length > 0) {
+            if (poseResults && poseResults.landmarks && poseResults.landmarks.length > 0 && showAvatar) {
                 const rawPose = poseResults.landmarks[0] as unknown as Landmark[];
                 poseLm = smoothPoseLandmarks(rawPose);
                 drawPoseSkeleton(canvasCtx, poseLm);
@@ -681,6 +737,7 @@ const DeepMotionDemo: React.FC = () => {
         poseLandmarker,
         samples,
         showAvatar,
+        isCalibrated,
     ]);
 
     // Throttled detection loop
@@ -854,6 +911,14 @@ const DeepMotionDemo: React.FC = () => {
 
                         {cameraEnabled ? (
                             <>
+                                {!isCalibrated && (
+                                    <CalibrationOverlay 
+                                        poseLandmarks={poseLandmarks} 
+                                        isCorrectPosition={isCorrectPosition}
+                                        calibrationProgress={calibrationProgress}
+                                        isAiLoaded={isAiLoaded && !!poseLandmarker}
+                                    />
+                                )}
                                 <Webcam
                                     ref={webcamRef}
                                     className="video-element"
