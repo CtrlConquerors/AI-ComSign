@@ -21,45 +21,46 @@ public class AdminStatsController : ControllerBase
     [HttpGet("practice-stats")]
     public async Task<IActionResult> GetPracticeStats()
     {
-        var sessions = await _context.PracticeSessions
-            .Include(s => s.Lesson)
-            .Include(s => s.Attempts)
+        // --- Per Learner (DB-side join + group) ---
+        var perLearner = await _context.PracticeSessions
             .Where(s => s.EndDate != null)
-            .ToListAsync();
-
-        var learners = await _context.Learners.ToListAsync();
-
-        // --- Per Learner ---
-        var perLearner = sessions
-            .GroupBy(s => s.LearnerId)
-            .Select(g =>
+            .Join(_context.Learners, s => s.LearnerId, l => l.Id,
+                (s, l) => new { s, LearnerName = l.Name })
+            .GroupBy(x => new { x.s.LearnerId, x.LearnerName })
+            .Select(g => new
             {
-                var learner = learners.FirstOrDefault(l => l.Id == g.Key);
-                return new
-                {
-                    learnerId = g.Key,
-                    name = learner?.Name ?? "Unknown",
-                    sessionCount = g.Count(),
-                    avgPassRate = g.Any() ? Math.Round(g.Average(s => (double)s.PassRate), 1) : 0.0
-                };
+                learnerId = g.Key.LearnerId,
+                name = g.Key.LearnerName,
+                sessionCount = g.Count(),
+                avgPassRate = Math.Round(g.Average(x => (double)x.s.PassRate), 1)
             })
             .OrderByDescending(x => x.sessionCount)
-            .ToList();
+            .ToListAsync();
 
         // --- Per Lesson ---
-        var perLesson = sessions
-            .Where(s => s.LessonId != null)
+        // "Hardest signs" requires nested grouping that EF can't fully translate;
+        // load only session + attempt data for finished sessions (lean projection).
+        var lessonSessions = await _context.PracticeSessions
+            .Where(s => s.EndDate != null && s.LessonId != null)
+            .Select(s => new
+            {
+                s.LessonId,
+                LessonTitle = s.Lesson != null ? s.Lesson.Title : "Unknown",
+                s.PassRate,
+                Attempts = s.Attempts
+                    .Where(a => !a.IsSkipped)
+                    .Select(a => new { a.SignName, a.Passed })
+                    .ToList()
+            })
+            .ToListAsync();
+
+        var perLesson = lessonSessions
             .GroupBy(s => s.LessonId)
             .Select(g =>
             {
-                var lesson = g.First().Lesson;
-
-                // All attempts across all sessions for this lesson
                 var allAttempts = g.SelectMany(s => s.Attempts).ToList();
 
-                // Hardest signs = bottom 3 by pass rate
-                var signPassRates = allAttempts
-                    .Where(a => !a.IsSkipped)
+                var hardestSigns = allAttempts
                     .GroupBy(a => a.SignName)
                     .Select(sg => new
                     {
@@ -74,42 +75,44 @@ public class AdminStatsController : ControllerBase
                 return new
                 {
                     lessonId = g.Key,
-                    title = lesson?.Title ?? "Unknown",
-                    avgPassRate = g.Any() ? Math.Round(g.Average(s => (double)s.PassRate), 1) : 0.0,
-                    hardestSigns = signPassRates
+                    title = g.First().LessonTitle,
+                    avgPassRate = Math.Round(g.Average(s => (double)s.PassRate), 1),
+                    hardestSigns
                 };
             })
             .OrderBy(x => x.avgPassRate)
             .ToList();
 
-        // --- Per Sign (all signs, sorted by pass rate) ---
-        var allAttemptsList = await _context.Attempts.ToListAsync();
-
-        var perSign = allAttemptsList
+        // --- Per Sign (DB-side group) ---
+        var perSign = await _context.Attempts
+            .Where(a => a.SignName != null && a.SignName != "")
             .GroupBy(a => a.SignName)
-            .Where(g => !string.IsNullOrEmpty(g.Key))
+            .Select(g => new
+            {
+                signName = g.Key,
+                totalAttempts = g.Count(),
+                passCount = g.Count(a => a.Passed && !a.IsSkipped),
+                skipCount = g.Count(a => a.IsSkipped),
+            })
+            .ToListAsync();
+
+        var perSignResult = perSign
             .Select(g =>
             {
-                var total = g.Count();
-                var passCount = g.Count(a => a.Passed && !a.IsSkipped);
-                var skipCount = g.Count(a => a.IsSkipped);
-                var nonSkipped = total - skipCount;
-                var passRate = nonSkipped > 0 ? Math.Round((double)passCount / nonSkipped * 100, 1) : 0;
-                var skipRate = total > 0 ? Math.Round((double)skipCount / total * 100, 1) : 0;
-
+                var nonSkipped = g.totalAttempts - g.skipCount;
                 return new
                 {
-                    signName = g.Key,
-                    totalAttempts = total,
-                    passCount,
-                    skipCount,
-                    passRate,
-                    skipRate
+                    g.signName,
+                    g.totalAttempts,
+                    g.passCount,
+                    g.skipCount,
+                    passRate = nonSkipped > 0 ? Math.Round((double)g.passCount / nonSkipped * 100, 1) : 0,
+                    skipRate = g.totalAttempts > 0 ? Math.Round((double)g.skipCount / g.totalAttempts * 100, 1) : 0,
                 };
             })
             .OrderBy(x => x.passRate)
             .ToList();
 
-        return Ok(new { perLearner, perLesson, perSign });
+        return Ok(new { perLearner, perLesson, perSign = perSignResult });
     }
 }
