@@ -20,16 +20,19 @@ public class PracticeSessionsController : ControllerBase
         _context = context;
     }
 
-    private Guid GetCallerId()
+    private Guid? GetCallerId()
     {
         var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.Parse(id!);
+        return Guid.TryParse(id, out var guid) ? guid : null;
     }
 
     // POST /api/practicesessions
     [HttpPost]
     public async Task<ActionResult<SessionStartedDto>> StartSession([FromBody] StartSessionDto dto)
     {
+        var callerId = GetCallerId();
+        if (callerId is null) return Unauthorized();
+
         var lesson = await _context.Lessons
             .Include(l => l.Signs)
             .FirstOrDefaultAsync(l => l.Id == dto.LessonId);
@@ -39,7 +42,7 @@ public class PracticeSessionsController : ControllerBase
 
         var session = new PracticeSession
         {
-            LearnerId = GetCallerId(),
+            LearnerId = callerId.Value,
             LessonId = dto.LessonId,
             StartDate = DateTime.UtcNow,
         };
@@ -63,9 +66,12 @@ public class PracticeSessionsController : ControllerBase
     [HttpPost("{id}/attempts")]
     public async Task<IActionResult> RecordAttempt(int id, [FromBody] AttemptDto dto)
     {
+        var callerId = GetCallerId();
+        if (callerId is null) return Unauthorized();
+
         var session = await _context.PracticeSessions.FindAsync(id);
         if (session == null) return NotFound("Session not found.");
-        if (session.LearnerId != GetCallerId()) return Forbid();
+        if (session.LearnerId != callerId.Value) return Forbid();
 
         // Optionally resolve SignId by name (best-effort; null if not found)
         var sign = await _context.SignSamples
@@ -92,6 +98,9 @@ public class PracticeSessionsController : ControllerBase
     [HttpPost("{id}/finish")]
     public async Task<ActionResult<SessionSummaryDto>> FinishSession(int id)
     {
+        var callerId = GetCallerId();
+        if (callerId is null) return Unauthorized();
+
         var session = await _context.PracticeSessions
             .Include(s => s.Lesson)
                 .ThenInclude(l => l!.Signs)
@@ -99,7 +108,7 @@ public class PracticeSessionsController : ControllerBase
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (session == null) return NotFound("Session not found.");
-        if (session.LearnerId != GetCallerId()) return Forbid();
+        if (session.LearnerId != callerId.Value) return Forbid();
 
         // TotalSigns = distinct sign names in the lesson (not raw sample count)
         int totalSigns = session.Lesson?.Signs.Select(s => s.SignName).Distinct().Count() ?? 0;
@@ -139,9 +148,11 @@ public class PracticeSessionsController : ControllerBase
     public async Task<IActionResult> GetHistory()
     {
         var learnerId = GetCallerId();
+        if (learnerId is null) return Unauthorized();
+
 
         var sessions = await _context.PracticeSessions
-            .Where(s => s.LearnerId == learnerId)
+            .Where(s => s.LearnerId == learnerId.Value)
             .Include(s => s.Lesson)
             .Include(s => s.Attempts)
             .OrderByDescending(s => s.StartDate)
