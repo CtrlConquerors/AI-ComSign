@@ -50,6 +50,43 @@ export const knnDistance = (
 };
 
 /**
+ * Find the best matching sign using KNN, accepting pre-grouped samples.
+ * Use this variant when calling at high frequency (e.g. detection loop) to
+ * avoid re-grouping on every frame — group once with `groupBySign` and pass
+ * the result here.
+ */
+export const findBestMatchGrouped = (
+  detected: Landmark[],
+  grouped: Record<string, SignSample[]>,
+  calculateDistance: (a: Landmark[], b: Landmark[]) => number,
+  validateSign: (signName: string, landmarks: Landmark[]) => boolean,
+  K: number = 3,
+  threshold: number = 4.5
+): MatchResult | null => {
+  const results: MatchResult[] = Object.entries(grouped)
+    .filter(([signName]) => validateSign(signName, detected))
+    .map(([signName, signSamples]) => {
+      const avgDistance = knnDistance(detected, signSamples, calculateDistance, K);
+      return { signName, avgDistance, sampleCount: signSamples.length, confidence: 0 };
+    })
+    .filter(r => r.avgDistance < Infinity)
+    .sort((a, b) => a.avgDistance - b.avgDistance);
+
+  if (results.length === 0) return null;
+  const best = results[0];
+  if (best.avgDistance >= threshold) return null;
+
+  const thresholdScore = Math.max(0, (threshold - best.avgDistance) / threshold) * 50;
+  const gapScore =
+    results.length > 1
+      ? Math.min(50, ((results[1].avgDistance - best.avgDistance) / best.avgDistance) * 100)
+      : 50;
+  best.confidence = Math.round(Math.min(100, thresholdScore + gapScore));
+
+  return best;
+};
+
+/**
  * Find the best matching sign using KNN across all signs
  *
  * @param detected - Detected hand landmarks

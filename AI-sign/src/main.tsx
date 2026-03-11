@@ -17,9 +17,11 @@ import AdminDashboard from './admin/AdminDashboard';
 import AdminUsers from './admin/AdminUsers';
 import AdminLessons from './admin/AdminLessons';
 import ProtectedRoute from './admin/ProtectedRoute';
+import ErrorBoundary from './ErrorBoundary';
 
 createRoot(document.getElementById('root') as HTMLElement).render(
     <StrictMode>
+        <ErrorBoundary>
         <BrowserRouter>
             <Routes>
                 <Route path="/" element={<HomePage />} />
@@ -70,5 +72,6 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                 </Route>
             </Routes>
         </BrowserRouter>
+        </ErrorBoundary>
     </StrictMode>
 );

@@ -12,7 +12,8 @@ import "./App.css";
 
 // Import shared types and utilities
 import type { Landmark, SignSample, MatchResult } from "./utils";
-import { findBestMatch, validateSign } from "./utils";
+import { validateSign } from "./utils";
+import { groupBySign, findBestMatchGrouped } from "./utils/knnMatcher";
 
 
 // ============================================================================
@@ -128,10 +129,16 @@ const DeepMotionDemo: React.FC = () => {
     const [poseLandmarker, setPoseLandmarker] = useState<PoseLandmarker | null>(null);
 
     const [samples, setSamples] = useState<SignSample[]>([]);
+    const groupedSamplesRef = useRef<Record<string, SignSample[]>>({});
     const [prediction, setPrediction] = useState<string>("");
     const [currentLandmarks, setCurrentLandmarks] = useState<Landmark[] | null>(null);
     const [debugDist, setDebugDist] = useState<number>(0);
     const [confidence, setConfidence] = useState<number>(0);
+
+    // Keep grouped samples in sync — computed once when samples change, not every frame
+    useEffect(() => {
+        groupedSamplesRef.current = groupBySign(samples);
+    }, [samples]);
 
     const predictionHistoryRef = useRef<string[]>([]);
     const [stablePrediction, setStablePrediction] = useState<string>("");
@@ -142,6 +149,16 @@ const DeepMotionDemo: React.FC = () => {
     // Sample count for display
     const [sampleCount, setSampleCount] = useState<number>(0);
 
+    // Toast notification
+    const [toast, setToast] = useState<string | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const showToast = (message: string) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast(message);
+        toastTimerRef.current = setTimeout(() => setToast(null), 2500);
+    };
+
     // Sentence building state (auto dwell-to-commit)
     const [words, setWords] = useState<string[]>([]);
     const currentSentence = words.join(" ");
@@ -149,12 +166,16 @@ const DeepMotionDemo: React.FC = () => {
     const lastWordRef = useRef<string | null>(null);
     const lastWordChangeTsRef = useRef<number>(0);
     const lastCommittedAtRef = useRef<number | null>(null);
+    const lastCommittedWordRef = useRef<string | null>(null);
 
     // Smoothed pose landmarks over time (for stable body skeleton)
     const smoothedPoseRef = useRef<Landmark[] | null>(null);
 
     // Ghost limb: track when each hand side was last detected
     const lastHandDetectedTimeRef = useRef<Record<"Left" | "Right", number>>({ Left: 0, Right: 0 });
+
+    // Track last known canvas dimensions to avoid unnecessary resets
+    const canvasDimsRef = useRef<{ width: number; height: number } | null>(null);
 
     // ========================================================================
     // INITIALIZATION
@@ -275,9 +296,9 @@ const DeepMotionDemo: React.FC = () => {
             };
             setSamples((prev) => [...prev, newSample]);
             setSampleCount((prev) => prev + 1);
-            alert(`Learned sign: ${signName}`);
+            showToast(`Learned sign: ${signName}`);
         } else {
-            alert("No hand detected!");
+            showToast("No hand detected!");
         }
     };
 
@@ -497,10 +518,18 @@ const DeepMotionDemo: React.FC = () => {
             }
 
             const canvasCtx = canvasRef.current.getContext("2d");
-            canvasRef.current.width = video.videoWidth;
-            canvasRef.current.height = video.videoHeight;
-
             if (!canvasCtx) return;
+
+            const { videoWidth, videoHeight } = video;
+            if (
+                !canvasDimsRef.current ||
+                canvasDimsRef.current.width !== videoWidth ||
+                canvasDimsRef.current.height !== videoHeight
+            ) {
+                canvasRef.current.width = videoWidth;
+                canvasRef.current.height = videoHeight;
+                canvasDimsRef.current = { width: videoWidth, height: videoHeight };
+            }
 
             canvasCtx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
@@ -535,9 +564,7 @@ const DeepMotionDemo: React.FC = () => {
                     for (let i = 0; i < handLm.length; i++) {
                         const landmarks = handLm[i] as Landmark[];
                         const rawHandedness =
-                            handResults.handedness?.[i]?.[0]?.categoryName ??
-                            handResults.handednesses?.[i]?.[0]?.categoryName ??
-                            "Right";
+                            handResults.handedness?.[i]?.[0]?.categoryName ?? "Right";
                         // MediaPipe reports handedness from the person's perspective directly —
                         // no flip needed. Pass it straight to Kalidokit and VRM.
                         const handednessLabel = rawHandedness as "Left" | "Right";
@@ -558,9 +585,9 @@ const DeepMotionDemo: React.FC = () => {
                 }
 
                 if (samples.length > 0) {
-                    const matchResult: MatchResult | null = findBestMatch(
+                    const matchResult: MatchResult | null = findBestMatchGrouped(
                         detectedHand,
-                        samples,
+                        groupedSamplesRef.current,
                         calculateDistance,
                         validateSign,
                         3,
@@ -610,7 +637,7 @@ const DeepMotionDemo: React.FC = () => {
                             const cooldownOver =
                                 !lastCommittedAt ||
                                 now - lastCommittedAt > COOLDOWN_MS ||
-                                words[words.length - 1] !== stableMatch;
+                                lastCommittedWordRef.current !== stableMatch;
 
                             if (
                                 heldMs >= COMMIT_MS &&
@@ -619,6 +646,7 @@ const DeepMotionDemo: React.FC = () => {
                             ) {
                                 setWords((prev) => [...prev, stableMatch]);
                                 lastCommittedAtRef.current = now;
+                                lastCommittedWordRef.current = stableMatch;
                             }
                         } else {
                             setPrediction("");
@@ -652,7 +680,6 @@ const DeepMotionDemo: React.FC = () => {
         handLandmarker,
         poseLandmarker,
         samples,
-        words,
         showAvatar,
     ]);
 
@@ -889,6 +916,28 @@ const DeepMotionDemo: React.FC = () => {
                     </section>
                 )}
             </div>
+
+            {toast && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    style={{
+                        position: "fixed",
+                        bottom: "1.5rem",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        background: "rgba(0,0,0,0.8)",
+                        color: "#fff",
+                        padding: "0.6rem 1.4rem",
+                        borderRadius: "2rem",
+                        fontSize: "0.9rem",
+                        pointerEvents: "none",
+                        zIndex: 9999,
+                    }}
+                >
+                    {toast}
+                </div>
+            )}
         </div>
     );
 };
