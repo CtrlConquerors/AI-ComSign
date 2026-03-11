@@ -1,0 +1,86 @@
+/* ── Calibration Overlay ────────────────────────────────────── */
+.calibration-container {
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    background: rgba(2, 6, 23, 0.4);
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2rem;
+}
+
+.calibration-box {
+    position: absolute;
+    border: 3px dashed rgba(148, 163, 184, 0.4);
+    border-radius: 20px;
+    transition: border-color 0.3s, background 0.3s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.calibration-box.is-correct {
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.08);
+    border-style: solid;
+}
+
+.calibration-box-label {
+    position: absolute;
+    top: -1.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #94a3b8;
+    transition: color 0.3s;
+}
+
+.is-correct .calibration-box-label {
+    color: #22c55e;
+}
+
+.calibration-progress-bar {
+    width: 60%;
+    height: 8px;
+    background: rgba(148, 163, 184, 0.2);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 1rem;
+}
+
+.calibration-progress-fill {
+    height: 100%;
+    background: #22c55e;
+    transition: width 0.1s linear;
+}
+
+.calibration-instructions {
+    margin-top: auto;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    text-align: center;
+    backdrop-filter: blur(8px);
+    width: 100%;
+    max-width: 400px;
+    pointer-events: auto;
+}
+
+.calibration-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 0.4rem;
+}
+
+.calibration-text {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    line-height: 1.5;
+}
