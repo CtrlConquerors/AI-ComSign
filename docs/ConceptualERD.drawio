@@ -19,13 +19,13 @@
         <mxCell id="I3sTuDYeDm7eBx_ux9cF-219" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Lesson" vertex="1">
           <mxGeometry height="54" width="107" x="463" y="1792" as="geometry" />
         </mxCell>
-        <mxCell id="I3sTuDYeDm7eBx_ux9cF-220" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Sign Gesture" vertex="1">
+        <mxCell id="I3sTuDYeDm7eBx_ux9cF-220" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Sign Sample" vertex="1">
           <mxGeometry height="54" width="161" x="436" y="2088" as="geometry" />
         </mxCell>
         <mxCell id="I3sTuDYeDm7eBx_ux9cF-221" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Practice Session" vertex="1">
           <mxGeometry height="54" width="174" x="20" y="2418" as="geometry" />
         </mxCell>
-        <mxCell id="I3sTuDYeDm7eBx_ux9cF-222" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Attempt/Result" vertex="1">
+        <mxCell id="I3sTuDYeDm7eBx_ux9cF-222" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Attempt" vertex="1">
           <mxGeometry height="54" width="171" x="105" y="2718" as="geometry" />
         </mxCell>
         <mxCell id="I3sTuDYeDm7eBx_ux9cF-223" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Registers" vertex="1">
@@ -37,13 +37,13 @@
         <mxCell id="I3sTuDYeDm7eBx_ux9cF-225" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Manages" vertex="1">
           <mxGeometry height="114" width="114" x="460" y="1604" as="geometry" />
         </mxCell>
-        <mxCell id="I3sTuDYeDm7eBx_ux9cF-226" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Contains" vertex="1">
+        <mxCell id="I3sTuDYeDm7eBx_ux9cF-226" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="LessonSign (Link)" vertex="1">
           <mxGeometry height="115" width="115" x="459" y="1898" as="geometry" />
         </mxCell>
-        <mxCell id="I3sTuDYeDm7eBx_ux9cF-227" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Includes" vertex="1">
+        <mxCell id="I3sTuDYeDm7eBx_ux9cF-227" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Recorded in" vertex="1">
           <mxGeometry height="113" width="113" x="51" y="2526" as="geometry" />
         </mxCell>
-        <mxCell id="new-rel-practices" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Practices" vertex="1">
+        <mxCell id="new-rel-practices" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Started from" vertex="1">
           <mxGeometry height="114" width="114" x="240" y="2088" as="geometry" />
         </mxCell>
         <mxCell id="edge-lesson-to-practices" edge="1" parent="1" source="I3sTuDYeDm7eBx_ux9cF-219" style="curved=1;startArrow=none;endArrow=none;rounded=0;" target="new-rel-practices" value="">
@@ -69,7 +69,7 @@
         <mxCell id="I3sTuDYeDm7eBx_ux9cF-228" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Evaluates" vertex="1">
           <mxGeometry height="122" width="122" x="291" y="2522" as="geometry" />
         </mxCell>
-        <mxCell id="I3sTuDYeDm7eBx_ux9cF-229" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Provides Data" vertex="1">
+        <mxCell id="I3sTuDYeDm7eBx_ux9cF-229" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Refers to SignName" vertex="1">
           <mxGeometry height="151" width="151" x="362" y="2192" as="geometry" />
         </mxCell>
         <mxCell id="I3sTuDYeDm7eBx_ux9cF-235" edge="1" parent="1" source="I3sTuDYeDm7eBx_ux9cF-215" style="curved=1;startArrow=none;endArrow=none;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" target="I3sTuDYeDm7eBx_ux9cF-223" value="">

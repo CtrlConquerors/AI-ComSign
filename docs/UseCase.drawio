@@ -34,19 +34,19 @@
             <mxPoint x="210" y="320" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="n32WQ6Tdn9I0X6WKRhaV-15" parent="n32WQ6Tdn9I0X6WKRhaV-6" style="rounded=0;whiteSpace=wrap;html=1;" value="View Lesson Summaries" vertex="1">
+        <mxCell id="n32WQ6Tdn9I0X6WKRhaV-15" parent="n32WQ6Tdn9I0X6WKRhaV-6" style="rounded=0;whiteSpace=wrap;html=1;" value="View Lessons and Signs" vertex="1">
           <mxGeometry height="60" width="120" x="35" y="70" as="geometry" />
         </mxCell>
         <mxCell id="n32WQ6Tdn9I0X6WKRhaV-17" parent="n32WQ6Tdn9I0X6WKRhaV-6" style="rounded=0;whiteSpace=wrap;html=1;" value="Manage User Account" vertex="1">
           <mxGeometry height="60" width="120" x="50" y="1110" as="geometry" />
         </mxCell>
-        <mxCell id="n32WQ6Tdn9I0X6WKRhaV-19" parent="n32WQ6Tdn9I0X6WKRhaV-6" style="rounded=0;whiteSpace=wrap;html=1;" value="Manage Sign Library and Lessons" vertex="1">
+        <mxCell id="n32WQ6Tdn9I0X6WKRhaV-19" parent="n32WQ6Tdn9I0X6WKRhaV-6" style="rounded=0;whiteSpace=wrap;html=1;" value="Manage Signs and Lessons" vertex="1">
           <mxGeometry height="60" width="120" x="50" y="1290" as="geometry" />
         </mxCell>
-        <mxCell id="n32WQ6Tdn9I0X6WKRhaV-24" parent="n32WQ6Tdn9I0X6WKRhaV-6" style="rounded=0;whiteSpace=wrap;html=1;" value="Calculate User Score" vertex="1">
+        <mxCell id="n32WQ6Tdn9I0X6WKRhaV-24" parent="n32WQ6Tdn9I0X6WKRhaV-6" style="rounded=0;whiteSpace=wrap;html=1;" value="Calculate Practice Score" vertex="1">
           <mxGeometry height="60" width="120" x="360" y="1020" as="geometry" />
         </mxCell>
-        <mxCell id="n32WQ6Tdn9I0X6WKRhaV-26" parent="n32WQ6Tdn9I0X6WKRhaV-6" style="rounded=0;whiteSpace=wrap;html=1;" value="Give Feedback" vertex="1">
+        <mxCell id="n32WQ6Tdn9I0X6WKRhaV-26" parent="n32WQ6Tdn9I0X6WKRhaV-6" style="rounded=0;whiteSpace=wrap;html=1;" value="AI Gesture Recognition" vertex="1">
           <mxGeometry height="60" width="120" x="360" y="1180" as="geometry" />
         </mxCell>
         <mxCell id="n32WQ6Tdn9I0X6WKRhaV-28" edge="1" parent="n32WQ6Tdn9I0X6WKRhaV-6" source="n32WQ6Tdn9I0X6WKRhaV-24" style="endArrow=open;startArrow=none;endFill=0;startFill=0;endSize=8;html=1;verticalAlign=bottom;dashed=1;labelBackgroundColor=none;rounded=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="n32WQ6Tdn9I0X6WKRhaV-26" value="&amp;lt;&amp;lt;include&amp;gt;&amp;gt;">

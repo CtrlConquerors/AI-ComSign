@@ -32,13 +32,13 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-36" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Browse and Select Lesson" vertex="1">
+        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-36" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Select Lesson and Start Session" vertex="1">
           <mxGeometry height="54" width="228" x="191" y="304" as="geometry" />
         </mxCell>
-        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-37" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Watch Sign Gesture Video Demo" vertex="1">
+        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-37" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="View Sign Demo and Sign Name" vertex="1">
           <mxGeometry height="78" width="260" x="175" y="408" as="geometry" />
         </mxCell>
-        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-38" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Calibrate Camera and Position in Frame" vertex="1">
+        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-38" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Calibrate and Position in Camera" vertex="1">
           <mxGeometry height="78" width="260" x="175" y="536" as="geometry" />
         </mxCell>
         <mxCell id="new-camera-decision" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="Camera Ready?" vertex="1">
@@ -61,16 +61,16 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-39" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Practice Sign Gesture" vertex="1">
+        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-39" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Perform Sign Gesture" vertex="1">
           <mxGeometry height="54" width="212" x="199" y="764" as="geometry" />
         </mxCell>
         <mxCell id="edge-camera-yes" edge="1" parent="1" source="new-camera-decision" style="curved=1;startArrow=none;endArrow=block;rounded=0;" target="1jhVpsxVKXy3ok-vpj1Q-39" value="Yes">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-40" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="AI-ComSign Analyzing" vertex="1">
+        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-40" parent="1" style="rhombus;strokeWidth=2;whiteSpace=wrap;" value="AI Recognition Match?" vertex="1">
           <mxGeometry height="158" width="158" x="342" y="868" as="geometry" />
         </mxCell>
-        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-41" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Receive Real-time Feedback" vertex="1">
+        <mxCell id="1jhVpsxVKXy3ok-vpj1Q-41" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="Receive Guidance Feedback" vertex="1">
           <mxGeometry height="78" width="260" x="20" y="1100" as="geometry" />
         </mxCell>
         <mxCell id="1jhVpsxVKXy3ok-vpj1Q-42" parent="1" style="whiteSpace=wrap;strokeWidth=2;" value="View Score and Results" vertex="1">
