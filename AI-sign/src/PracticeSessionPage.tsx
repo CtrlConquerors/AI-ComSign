@@ -6,20 +6,16 @@ import {
     HandLandmarker,
     type HandLandmarkerResult,
     PoseLandmarker,
-    type PoseLandmarkerResult,
 } from '@mediapipe/tasks-vision';
-import CalibrationOverlay from './CalibrationOverlay';
-import './api/axios';
+import { recordAttempt, finishSession } from './api/axios';
 import { findBestMatch, validateSign } from './utils';
 import type { Landmark, SignSample, MatchResult, SessionSummaryDto } from './utils';
 import './Practice.css';
-import './Calibration.css';
 
 // ── Tuning (same as App.tsx) ────────────────────────────────────────────────
 const DETECTION_INTERVAL_MS = 43;
 const HISTORY_SIZE = 10;
 const HISTORY_MIN_VOTES = 7;
-const CALIBRATION_DURATION_MS = 2500; // Time user must stay in box to calibrate
 
 // ── Weighted distance (same algorithm as App.tsx) ───────────────────────────
 const normalizeLandmarks = (lm: Landmark[]): Landmark[] => {
@@ -79,13 +75,6 @@ const PracticeSessionPage: React.FC = () => {
     const [isAiLoaded, setIsAiLoaded] = useState(false);
     const [handLandmarker, setHandLandmarker] = useState<HandLandmarker | null>(null);
     const [poseLandmarker, setPoseLandmarker] = useState<PoseLandmarker | null>(null);
-
-    // Calibration state
-    const [isCalibrated, setIsCalibrated] = useState(false);
-    const [isCorrectPosition, setIsCorrectPosition] = useState(false);
-    const [calibrationProgress, setCalibrationProgress] = useState(0);
-    const [poseLandmarks, setPoseLandmarks] = useState<Landmark[] | null>(null);
-    const calibrationStartTimeRef = useRef<number | null>(null);
 
     // Sign data (fetched from API)
     const [samples, setSamples] = useState<SignSample[]>([]);
@@ -183,50 +172,6 @@ const PracticeSessionPage: React.FC = () => {
             if (!ctx) return;
             ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
-            // ── Calibration Phase ─────────────────────────────────────────
-            if (!isCalibrated) {
-                const poseResult: PoseLandmarkerResult = poseLandmarker.detectForVideo(video, nowInMs);
-                
-                if (poseResult.landmarks?.length > 0) {
-                    const pose = poseResult.landmarks[0] as Landmark[];
-                    setPoseLandmarks(pose);
-                    
-                    // Simple check: Head (0) and shoulders (11, 12) should be within the box
-                    // targetBox = { x: 0.25, y: 0.15, width: 0.5, height: 0.7 }
-                    const head = pose[0];
-                    const leftShoulder = pose[11];
-                    const rightShoulder = pose[12];
-                    
-                    const isHeadIn = head.x > 0.25 && head.x < 0.75 && head.y > 0.15 && head.y < 0.5;
-                    const isShouldersIn = leftShoulder.x > 0.2 && leftShoulder.x < 0.8 && 
-                                        rightShoulder.x > 0.2 && rightShoulder.x < 0.8;
-                    
-                    const correct = isHeadIn && isShouldersIn;
-                    setIsCorrectPosition(correct);
-                    
-                    if (correct) {
-                        if (calibrationStartTimeRef.current === null) {
-                            calibrationStartTimeRef.current = nowInMs;
-                        }
-                        const elapsed = nowInMs - calibrationStartTimeRef.current;
-                        const progress = Math.min(100, (elapsed / CALIBRATION_DURATION_MS) * 100);
-                        setCalibrationProgress(progress);
-                        
-                        if (progress >= 100) {
-                            setIsCalibrated(true);
-                        }
-                    } else {
-                        calibrationStartTimeRef.current = null;
-                        setCalibrationProgress(0);
-                    }
-                } else {
-                    setIsCorrectPosition(false);
-                    calibrationStartTimeRef.current = null;
-                    setCalibrationProgress(0);
-                }
-                return; // Only do calibration until done
-            }
-
             // ── Normal Practice Phase ─────────────────────────────────────
             const result: HandLandmarkerResult = handLandmarker.detectForVideo(video, nowInMs);
 
@@ -293,7 +238,7 @@ const PracticeSessionPage: React.FC = () => {
                 setConfidence(0);
             }
         }
-    }, [handLandmarker, poseLandmarker, samples, submitResult, isCalibrated]);
+    }, [handLandmarker, poseLandmarker, samples, submitResult]);
 
     useEffect(() => {
         if (!isAiLoaded) return;
@@ -461,18 +406,8 @@ const PracticeSessionPage: React.FC = () => {
 
                 {/* Video + canvas */}
                 <div className="session-video-frame">
-                    {/* Calibration Phase Overlay */}
-                    {!isCalibrated && (
-                        <CalibrationOverlay 
-                            poseLandmarks={poseLandmarks} 
-                            isCorrectPosition={isCorrectPosition}
-                            calibrationProgress={calibrationProgress}
-                            isAiLoaded={isAiLoaded && !!poseLandmarker}
-                        />
-                    )}
-
                     {/* AI warm-up overlay — blocks submit until camera + model ready */}
-                    {isCalibrated && !isAiLoaded && (
+                    {!isAiLoaded && (
                         <div className="practice-loading-overlay">
                             <div className="practice-loading-spinner" />
                             <p className="practice-loading-text">Loading AI model…</p>
