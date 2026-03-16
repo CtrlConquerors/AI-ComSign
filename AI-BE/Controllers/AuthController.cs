@@ -117,12 +117,44 @@ namespace AI_BE.Controllers
 
             return Ok(new
             {
-                learner.Id,
-                learner.Name,
-                learner.Email,
-                learner.DateOfBirth,
-                learner.CreatedAt,
-                learner.Role
+                id = learner.Id,
+                email = learner.Email,
+                fullName = learner.Name,
+                phone = learner.PhoneNumber ?? "",
+                role = learner.Role
+            });
+        }
+
+        [Authorize]
+        [HttpPut("profile")]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized("Token is missing or contains an invalid user identifier.");
+            }
+
+            var learner = await _context.Learners.FindAsync(userId);
+
+            if (learner == null)
+            {
+                return NotFound("User not found.");
+            }
+
+            learner.Name = dto.FullName;
+            learner.PhoneNumber = dto.Phone;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                id = learner.Id,
+                email = learner.Email,
+                fullName = learner.Name,
+                phone = learner.PhoneNumber,
+                role = learner.Role
             });
         }
 

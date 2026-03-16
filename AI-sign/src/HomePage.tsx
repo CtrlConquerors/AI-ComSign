@@ -114,6 +114,7 @@ function HomePage() {
                                 <span className="welcome-text">
                                     Chào, <strong className="hero-gradient">{userName}</strong>!
                                 </span>
+                                <Link to="/profile" className="nav-link" onClick={closeMobileNav} style={{ color: '#fff', textDecoration: 'none', fontSize: '0.9rem', marginRight: '1rem' }}>Profile</Link>
                                 <button onClick={handleLogout} className="logout-btn">Logout</button>
                             </div>
                         )}

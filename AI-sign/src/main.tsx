@@ -14,6 +14,7 @@ import ResetPassword from './ResetPassword';
 import PracticePage from './PracticePage';
 import PracticeSessionPage from './PracticeSessionPage';
 import PracticeHistoryPage from './PracticeHistoryPage';
+import Profile from './Profile';
 import AdminLayout from './admin/AdminLayout';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminUsers from './admin/AdminUsers';
@@ -51,6 +52,14 @@ createRoot(document.getElementById('root') as HTMLElement).render(
                     element={
                         <ProtectedRoute allowedRoles={["Learner", "Admin"]}>
                             <PracticeHistoryPage />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/profile"
+                    element={
+                        <ProtectedRoute allowedRoles={["Learner", "Admin"]}>
+                            <Profile />
                         </ProtectedRoute>
                     }
                 />
