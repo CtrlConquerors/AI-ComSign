@@ -33,9 +33,11 @@
 
 /* ===== TOP NAV ===== */
 .top-nav {
-    display: flex;
+    display: grid;
+    /* This creates 3 equal columns. 
+       Left aligned, Center aligned, Right aligned */
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: space-between;
     padding: 0.5rem 0.9rem;
     margin-bottom: 1.7rem;
     border-radius: 18px;
@@ -45,7 +47,6 @@
     position: sticky;
     top: 0.85rem;
     z-index: 20;
-    transform: translateY(0);
     transition: transform 220ms cubic-bezier(.4,2,.3,1), box-shadow 220ms, border-color 180ms, background-color 180ms;
 }
 
@@ -67,6 +68,7 @@
     letter-spacing: 0.06em;
     font-size: 0.88rem;
     text-transform: uppercase;
+    justify-self: start; /* Keeps logo pinned to left */
 }
 
 .nav-logo-mark {
@@ -104,6 +106,7 @@
 .nav-links {
     display: flex;
     align-items: center;
+    justify-content: center; /* Center the container's contents */
     gap: 1.15rem;
     font-size: 0.84rem;
 }
@@ -137,6 +140,7 @@
             transform: scale(1.07) translateY(-2px);
         }
 
+
             .nav-links a:hover::after {
                 opacity: 1;
                 transform: scaleX(1);
@@ -145,6 +149,7 @@
 
 /* ===== NAV CTA ===== */
 .nav-cta {
+    justify-self: end;
     padding: 0.42rem 0.95rem;
     border-radius: 999px;
     background-color: #16a34a;
@@ -156,6 +161,7 @@
     white-space: nowrap;
     transform: translateY(0);
     transition: transform 160ms, box-shadow 180ms, background-color 160ms;
+    
 }
 
     .nav-cta:hover {
@@ -779,7 +785,93 @@ button:hover ~ .flashlight-overlay,
         display: none;
     }
 }
+/* ADD near the TOP NAV section (after .top-nav rules is fine) */
 
+.nav-toggle {
+    display: none; /* desktop hidden */
+    border: 1px solid #1f2937;
+    background: #020617;
+    color: #e5e7eb;
+    border-radius: 12px;
+    padding: 0.55rem 0.6rem;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+}
+
+.nav-toggle-bar {
+    display: block;
+    width: 18px;
+    height: 2px;
+    background: #cbd5f5;
+    border-radius: 999px;
+}
+
+    .nav-toggle-bar + .nav-toggle-bar {
+        margin-top: 4px;
+    }
+
+/* Wrap nav + CTA so we can collapse it */
+.nav-menu {
+    display: flex;
+    align-items: center;
+    gap: 1.15rem;
+}
+
+/* ===== MOBILE NAV TOGGLE ===== */
+@media (max-width: 768px) {
+    .top-nav {
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .nav-toggle {
+        display: inline-flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 0;
+        margin-left: auto;
+    }
+
+    /* collapsed by default */
+    .nav-menu {
+        width: 100%;
+        display: none;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.8rem;
+        padding-top: 0.25rem;
+    }
+
+        .nav-menu.open {
+            display: flex;
+        }
+
+    .nav-links {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.35rem;
+        padding: 0.35rem 0.25rem;
+        border-top: 1px solid rgba(31, 41, 55, 0.8);
+    }
+
+        .nav-links a {
+            padding: 0.55rem 0.75rem;
+            border-radius: 12px;
+        }
+
+    .nav-cta {
+        width: 100%;
+        text-align: center;
+    }
+
+    .user-nav-group {
+        width: 100%;
+        justify-content: space-between;
+        margin-left: 0;
+        padding: 0.4rem 0.35rem;
+    }
+}
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1024px) {
     .top-nav {
@@ -801,8 +893,11 @@ button:hover ~ .flashlight-overlay,
     }
 
     .top-nav {
+        display: flex; /* <-- ADD THIS to override grid on mobile */
         position: static;
         flex-wrap: wrap;
+        justify-content: space-between; /* <-- ADD THIS to keep logo left, toggle right */
+        align-items: center; /* <-- CHANGE THIS from flex-start to center */
         gap: 0.75rem;
         padding-inline: 1rem;
     }
