@@ -817,6 +817,8 @@ button:hover ~ .flashlight-overlay,
     gap: 1.15rem;
 }
 
+/* ...keep existing styles above... */
+
 /* ===== MOBILE NAV TOGGLE ===== */
 @media (max-width: 768px) {
     .top-nav {
@@ -832,18 +834,28 @@ button:hover ~ .flashlight-overlay,
         margin-left: auto;
     }
 
-    /* collapsed by default */
+    /* collapsed by default (ANIMATABLE) */
     .nav-menu {
         width: 100%;
-        display: none;
+        display: flex; /* was: none */
         flex-direction: column;
         align-items: stretch;
         gap: 0.8rem;
         padding-top: 0.25rem;
+        /* animation bits */
+        max-height: 0;
+        opacity: 0;
+        overflow: hidden;
+        transform: translateY(-6px);
+        pointer-events: none;
+        transition: max-height 360ms cubic-bezier(.4,2,.3,1), opacity 300ms ease, transform 320ms cubic-bezier(.4,2,.3,1);
     }
 
         .nav-menu.open {
-            display: flex;
+            max-height: 420px; /* adjust if your menu is taller */
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
         }
 
     .nav-links {
@@ -872,6 +884,7 @@ button:hover ~ .flashlight-overlay,
         padding: 0.4rem 0.35rem;
     }
 }
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1024px) {
     .top-nav {
