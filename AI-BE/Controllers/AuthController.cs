@@ -50,7 +50,9 @@ namespace AI_BE.Controllers
             _context.Learners.Add(learner);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Registration successful." });
+            var token = GenerateJwtToken(learner);
+
+            return Ok(new { token, message = "Registration successful." });
         }
 
         [HttpPost("login")]
@@ -122,6 +124,55 @@ namespace AI_BE.Controllers
                 learner.CreatedAt,
                 learner.Role
             });
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+        {
+            var learner = await _context.Learners.FirstOrDefaultAsync(l => l.Email == dto.Email);
+            if (learner != null)
+            {
+                var token = Guid.NewGuid().ToString();
+                var resetToken = new PasswordResetToken
+                {
+                    LearnerId = learner.Id,
+                    Token = token,
+                    ExpirationTime = DateTime.UtcNow.AddHours(1)
+                };
+                
+                _context.PasswordResetTokens.Add(resetToken);
+                await _context.SaveChangesAsync();
+                
+                return Ok(new { message = "Reset token generated", token = token });
+            }
+            
+            return BadRequest(new { message = "Email not found." });
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+        {
+            var resetToken = await _context.PasswordResetTokens
+                .Include(t => t.Learner)
+                .FirstOrDefaultAsync(t => t.Token == dto.Token && !t.Used);
+
+            if (resetToken == null || resetToken.ExpirationTime < DateTime.UtcNow)
+            {
+                return BadRequest("Invalid or expired token.");
+            }
+
+            var learner = resetToken.Learner;
+            if (learner == null)
+            {
+                return BadRequest("Invalid token.");
+            }
+
+            learner.PasswordHash = _passwordHasher.HashPassword(learner, dto.NewPassword);
+            resetToken.Used = true;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Password reset successful" });
         }
     }
 }

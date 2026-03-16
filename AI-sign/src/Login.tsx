@@ -39,8 +39,11 @@ const Login: React.FC = () => {
                         Sign In
                     </button>
                 </form>
-                <p style={{ textAlign: 'center', marginTop: '1rem', color: '#94a3b8' }}>
-                    New to SignBridge? <Link to="/register" style={{ color: '#3b82f6' }}>Create an account</Link>
+                <p style={{ textAlign: 'center', marginTop: '1.5rem', color: '#94a3b8' }}>
+                    <Link to="/forgot-password" style={{ color: '#3b82f6', textDecoration: 'none' }}>Forgot Password?</Link>
+                </p>
+                <p style={{ textAlign: 'center', marginTop: '0.5rem', color: '#94a3b8' }}>
+                    New to SignBridge? <Link to="/register" style={{ color: '#3b82f6', textDecoration: 'none' }}>Create an account</Link>
                 </p>
             </div>
         </div>

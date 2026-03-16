@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<SignSample> SignSamples { get; set; }
     public DbSet<PracticeSession> PracticeSessions => Set<PracticeSession>();
     public DbSet<Attempt> Attempts => Set<Attempt>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

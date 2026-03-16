@@ -13,5 +13,7 @@ namespace AI_BE.Models
         public DateTime DateOfBirth { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public string Role { get; set; } = "Learner";
+
+        public ICollection<PasswordResetToken> PasswordResetTokens { get; set; } = new List<PasswordResetToken>();
     }
 }

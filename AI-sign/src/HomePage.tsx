@@ -1,4 +1,4 @@
-﻿import './HomePage.css';
+import './HomePage.css';
 import { Link, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import api from './api/axios';
@@ -9,6 +9,7 @@ function HomePage() {
 
     const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
     const [userName, setUserName] = useState<string>("");
+    const [userRole, setUserRole] = useState<string>("");
 
     // ADD: mobile nav state
     const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -46,6 +47,7 @@ function HomePage() {
         try {
             const res = await api.get('/Auth/profile');
             setUserName(res.data.name);
+            setUserRole(res.data.role);
         } catch (err) {
             console.error("Không lấy được profile:", err);
             handleLogout();
@@ -55,6 +57,8 @@ function HomePage() {
     const handleLogout = () => {
         localStorage.removeItem('token');
         setIsLoggedIn(false);
+        setUserName("");
+        setUserRole("");
         setIsMobileNavOpen(false); // ADD
         navigate('/');
     };
@@ -95,7 +99,9 @@ function HomePage() {
                         <a href="#learning-path" onClick={closeMobileNav}>Learn</a>
                         <Link to="/practice" onClick={closeMobileNav}>Practice</Link>
                         <a href="#features" onClick={closeMobileNav}>Features</a>
-                        <Link to="/admin" onClick={closeMobileNav}>Admin Dashboard</Link>
+                        {userRole === 'Admin' && (
+                            <Link to="/admin" onClick={closeMobileNav}>Admin Dashboard</Link>
+                        )}
                         <Link to="/lessons" onClick={closeMobileNav}>Lesson</Link>
 
                         {!isLoggedIn ? (

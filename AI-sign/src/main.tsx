@@ -8,6 +8,8 @@ import AdminExtraction from './AdminExtraction';
 import LessonPage from './LessonPage';
 import Login from './Login'; 
 import Register from './Register';
+import ForgotPassword from './ForgotPassword';
+import ResetPassword from './ResetPassword';
 
 import PracticePage from './PracticePage';
 import PracticeSessionPage from './PracticeSessionPage';
@@ -55,6 +57,8 @@ createRoot(document.getElementById('root') as HTMLElement).render(
 
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
 
                 {/* Admin Routes */}
                 <Route 
