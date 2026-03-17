@@ -17,6 +17,15 @@ const DETECTION_INTERVAL_MS = 43;
 const HISTORY_SIZE = 10;
 const HISTORY_MIN_VOTES = 7;
 
+// ── Auto-submit tuning ─────────────────────────────────────────────────────
+const AUTO_SUBMIT_ENABLED = true;
+const AUTO_SUBMIT_MIN_CONFIDENCE = 60; // %
+const AUTO_SUBMIT_HOLD_MS = 90; // must stay matched for this long
+
+// ── Auto-next tuning ───────────────────────────────────────────────────────
+const AUTO_NEXT_ENABLED = true;
+const AUTO_NEXT_DELAY_MS = 1000;
+
 // ── Weighted distance (same algorithm as App.tsx) ───────────────────────────
 const normalizeLandmarks = (lm: Landmark[]): Landmark[] => {
     if (!lm || lm.length === 0) return [];
@@ -36,7 +45,7 @@ const calculateDistance = (a: Landmark[], b: Landmark[]): number => {
     if (na.length === 0 || nb.length === 0) return Infinity;
 
     const weights = [1.0, 0.8, 0.8, 0.8, 1.2, 1.0, 0.9, 0.9, 1.2,
-                     1.0, 0.9, 0.9, 1.2, 1.0, 0.9, 0.9, 1.2, 1.0, 0.9, 0.9, 1.2];
+        1.0, 0.9, 0.9, 1.2, 1.0, 0.9, 0.9, 1.2, 1.0, 0.9, 0.9, 1.2];
 
     let dDirect = 0, dMirror = 0;
     for (let i = 0; i < na.length; i++) {
@@ -93,8 +102,36 @@ const PracticeSessionPage: React.FC = () => {
     // Summary shown after session completes
     const [summary, setSummary] = useState<SessionSummaryDto | null>(null);
 
+    // ── Gamification state ────────────────────────────────────────────────
+    const [streak, setStreak] = useState(0);
+    const [lives, setLives] = useState(3);
+    const [xp, setXp] = useState(0);
+    const [comboFx, setComboFx] = useState<'none' | 'hit' | 'miss'>('none');
+    const comboFxTimerRef = useRef<number | null>(null);
+
+    // ── Auto-submit / auto-next timers ─────────────────────────────────────
+    const autoSubmitTimerRef = useRef<number | null>(null);
+    const autoNextTimerRef = useRef<number | null>(null);
+
     const targetSign = signNames[currentIndex] ?? '';
     const isMatch = stablePrediction.toLowerCase() === targetSign.toLowerCase() && stablePrediction !== '';
+
+    const level = Math.max(1, Math.floor(xp / 100) + 1);
+    const levelProgress = xp % 100; // 0..99
+
+    const pulseFx = (fx: 'hit' | 'miss') => {
+        setComboFx(fx);
+        if (comboFxTimerRef.current) window.clearTimeout(comboFxTimerRef.current);
+        comboFxTimerRef.current = window.setTimeout(() => setComboFx('none'), 520);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (comboFxTimerRef.current) window.clearTimeout(comboFxTimerRef.current);
+            if (autoSubmitTimerRef.current) window.clearTimeout(autoSubmitTimerRef.current);
+            if (autoNextTimerRef.current) window.clearTimeout(autoNextTimerRef.current);
+        };
+    }, []);
 
     // ── Load MediaPipe models ─────────────────────────────────────────────
     useEffect(() => {
@@ -150,9 +187,154 @@ const PracticeSessionPage: React.FC = () => {
         fetchSigns();
     }, []);
 
+    // ── Submit / Skip ─────────────────────────────────────────────────────
+    const handleSubmit = useCallback(async () => {
+        if (submitting || !sessionId) return;
+        setSubmitting(true);
+
+        const passed = stablePrediction.toLowerCase() === targetSign.toLowerCase();
+        const score = passed ? confidence : 0;
+        const result: 'pass' | 'fail' = passed ? 'pass' : 'fail';
+
+        try {
+            await recordAttempt(sessionId, { signName: targetSign, score, passed, isSkipped: false });
+        } catch (e) {
+            console.error('Failed to record attempt:', e);
+        }
+
+        if (passed) {
+            const bonus = Math.min(25, Math.floor((confidence / 100) * 25));
+            const streakBonus = Math.min(30, streak * 3);
+            setXp(prev => prev + 20 + bonus + streakBonus);
+            setStreak(prev => prev + 1);
+            pulseFx('hit');
+        } else {
+            setStreak(0);
+            setLives(prev => Math.max(0, prev - 1));
+            pulseFx('miss');
+        }
+
+        setSubmitResult(result);
+        setSubmitConfidence(score);
+        setSubmitting(false);
+    }, [confidence, sessionId, stablePrediction, streak, submitting, targetSign]);
+
+    const handleSkip = async () => {
+        if (submitting || !sessionId) return;
+        setSubmitting(true);
+
+        try {
+            await recordAttempt(sessionId, { signName: targetSign, score: 0, passed: false, isSkipped: true });
+        } catch (e) {
+            console.error('Failed to record skip:', e);
+        }
+
+        setStreak(0);
+
+        setSubmitResult('skip');
+        setSubmitConfidence(0);
+        setSubmitting(false);
+    };
+
+    const handleNext = useCallback(async () => {
+        const nextIndex = currentIndex + 1;
+
+        setSubmitResult(null);
+        setStablePrediction('');
+        setConfidence(0);
+        predictionHistoryRef.current = [];
+
+        if (autoSubmitTimerRef.current) {
+            window.clearTimeout(autoSubmitTimerRef.current);
+            autoSubmitTimerRef.current = null;
+        }
+        if (autoNextTimerRef.current) {
+            window.clearTimeout(autoNextTimerRef.current);
+            autoNextTimerRef.current = null;
+        }
+
+        if (nextIndex >= signNames.length) {
+            try {
+                const res = await finishSession(sessionId!);
+                setSummary(res.data);
+            } catch (e) {
+                console.error('Failed to finish session:', e);
+                navigate('/practice');
+            }
+        } else {
+            setCurrentIndex(nextIndex);
+        }
+    }, [currentIndex, navigate, sessionId, signNames.length]);
+
+    // ── Auto-submit effect ────────────────────────────────────────────────
+    useEffect(() => {
+        if (!AUTO_SUBMIT_ENABLED) return;
+
+        const canAutoSubmit =
+            isAiLoaded &&
+            submitResult === null &&
+            !submitting &&
+            stablePrediction !== '' &&
+            isMatch &&
+            confidence >= AUTO_SUBMIT_MIN_CONFIDENCE;
+
+        if (!canAutoSubmit) {
+            if (autoSubmitTimerRef.current) {
+                window.clearTimeout(autoSubmitTimerRef.current);
+                autoSubmitTimerRef.current = null;
+            }
+            return;
+        }
+
+        if (autoSubmitTimerRef.current == null) {
+            autoSubmitTimerRef.current = window.setTimeout(() => {
+                autoSubmitTimerRef.current = null;
+                void handleSubmit();
+            }, AUTO_SUBMIT_HOLD_MS);
+        }
+
+        return () => {
+            if (autoSubmitTimerRef.current) {
+                window.clearTimeout(autoSubmitTimerRef.current);
+                autoSubmitTimerRef.current = null;
+            }
+        };
+    }, [confidence, handleSubmit, isAiLoaded, isMatch, stablePrediction, submitResult, submitting]);
+
+    // ── Auto-next effect (after overlay appears) ───────────────────────────
+    useEffect(() => {
+        if (!AUTO_NEXT_ENABLED) return;
+
+        const canAutoNext =
+            submitResult !== null &&
+            !submitting &&
+            summary == null;
+
+        if (!canAutoNext) {
+            if (autoNextTimerRef.current) {
+                window.clearTimeout(autoNextTimerRef.current);
+                autoNextTimerRef.current = null;
+            }
+            return;
+        }
+
+        if (autoNextTimerRef.current == null) {
+            autoNextTimerRef.current = window.setTimeout(() => {
+                autoNextTimerRef.current = null;
+                void handleNext();
+            }, AUTO_NEXT_DELAY_MS);
+        }
+
+        return () => {
+            if (autoNextTimerRef.current) {
+                window.clearTimeout(autoNextTimerRef.current);
+                autoNextTimerRef.current = null;
+            }
+        };
+    }, [handleNext, submitResult, submitting, summary]);
+
     // ── Detection loop ────────────────────────────────────────────────────
     const detectHands = useCallback(() => {
-        // Don't update prediction while showing result overlay
         if (submitResult !== null) return;
 
         if (
@@ -164,25 +346,22 @@ const PracticeSessionPage: React.FC = () => {
         ) {
             const video = webcamRef.current.video;
             const nowInMs = performance.now();
-            
-            // ── Canvas Setup (Always clear every frame) ──────────────────
+
             canvasRef.current.width = video.videoWidth;
             canvasRef.current.height = video.videoHeight;
             const ctx = canvasRef.current.getContext('2d');
             if (!ctx) return;
             ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
-            // ── Normal Practice Phase ─────────────────────────────────────
             const result: HandLandmarkerResult = handLandmarker.detectForVideo(video, nowInMs);
 
             if (result.landmarks?.length > 0) {
                 const handLm = result.landmarks as Landmark[][];
 
-                // Draw skeleton
                 const connections = [
-                    [0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
-                    [0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],
-                    [0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17],
+                    [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8],
+                    [0, 9], [9, 10], [10, 11], [11, 12], [0, 13], [13, 14], [14, 15], [15, 16],
+                    [0, 17], [17, 18], [18, 19], [19, 20], [5, 9], [9, 13], [13, 17],
                 ];
                 handLm.forEach(hand => {
                     hand.forEach(p => {
@@ -252,64 +431,6 @@ const PracticeSessionPage: React.FC = () => {
         return () => { cancelled = true; };
     }, [isAiLoaded, detectHands]);
 
-    // ── Submit / Skip ─────────────────────────────────────────────────────
-    const handleSubmit = async () => {
-        if (submitting || !sessionId) return;
-        setSubmitting(true);
-
-        const passed = stablePrediction.toLowerCase() === targetSign.toLowerCase();
-        const score = passed ? confidence : 0;
-        const result: 'pass' | 'fail' = passed ? 'pass' : 'fail';
-
-        try {
-            await recordAttempt(sessionId, { signName: targetSign, score, passed, isSkipped: false });
-        } catch (e) {
-            console.error('Failed to record attempt:', e);
-        }
-
-        setSubmitResult(result);
-        setSubmitConfidence(score);
-        setSubmitting(false);
-    };
-
-    const handleSkip = async () => {
-        if (submitting || !sessionId) return;
-        setSubmitting(true);
-
-        try {
-            await recordAttempt(sessionId, { signName: targetSign, score: 0, passed: false, isSkipped: true });
-        } catch (e) {
-            console.error('Failed to record skip:', e);
-        }
-
-        setSubmitResult('skip');
-        setSubmitConfidence(0);
-        setSubmitting(false);
-    };
-
-    const handleNext = async () => {
-        const nextIndex = currentIndex + 1;
-
-        // Reset for next sign
-        setSubmitResult(null);
-        setStablePrediction('');
-        setConfidence(0);
-        predictionHistoryRef.current = [];
-
-        if (nextIndex >= signNames.length) {
-            // Session complete — let server compute the score
-            try {
-                const res = await finishSession(sessionId!);
-                setSummary(res.data);
-            } catch (e) {
-                console.error('Failed to finish session:', e);
-                navigate('/practice');
-            }
-        } else {
-            setCurrentIndex(nextIndex);
-        }
-    };
-
     // ── Summary view ──────────────────────────────────────────────────────
     if (summary) {
         return (
@@ -320,6 +441,9 @@ const PracticeSessionPage: React.FC = () => {
                             <div className="summary-score-pct">{summary.passRate}%</div>
                             <div className="summary-score-label">
                                 {summary.lessonTitle} — {summary.passedSigns} / {summary.totalSigns} correct
+                            </div>
+                            <div className="summary-score-label" style={{ marginTop: '0.65rem' }}>
+                                Level {level} • XP {xp} • Best streak {streak}
                             </div>
                         </div>
 
@@ -381,6 +505,35 @@ const PracticeSessionPage: React.FC = () => {
                     </span>
                 </div>
 
+                {/* HUD */}
+                <div className="session-hud">
+                    <div className="hud-pill">
+                        <span className="hud-label">Level</span>
+                        <span className="hud-value">{level}</span>
+                    </div>
+                    <div className="hud-pill">
+                        <span className="hud-label">XP</span>
+                        <span className="hud-value">{xp}</span>
+                    </div>
+                    <div className="hud-pill">
+                        <span className="hud-label">Streak</span>
+                        <span className="hud-value">🔥 {streak}</span>
+                    </div>
+                    <div className="hud-pill">
+                        <span className="hud-label">Lives</span>
+                        <span className="hud-value">
+                            <span className="hearts" aria-label={`${lives} lives`}>
+                                {'♥'.repeat(lives)}{'♡'.repeat(Math.max(0, 3 - lives))}
+                            </span>
+                        </span>
+                    </div>
+                </div>
+
+                {/* XP bar */}
+                <div className="xp-bar" aria-label="XP progress">
+                    <div className="xp-bar-fill" style={{ width: `${levelProgress}%` }} />
+                </div>
+
                 {/* Target sign */}
                 <div className="session-prompt">
                     <div className="session-prompt-label">Sign this word</div>
@@ -405,8 +558,7 @@ const PracticeSessionPage: React.FC = () => {
                 </div>
 
                 {/* Video + canvas */}
-                <div className="session-video-frame">
-                    {/* AI warm-up overlay — blocks submit until camera + model ready */}
+                <div className={`session-video-frame ${comboFx !== 'none' ? `fx-${comboFx}` : ''}`}>
                     {!isAiLoaded && (
                         <div className="practice-loading-overlay">
                             <div className="practice-loading-spinner" />
@@ -421,7 +573,6 @@ const PracticeSessionPage: React.FC = () => {
                     />
                     <canvas ref={canvasRef} className="practice-canvas" />
 
-                    {/* Result overlay after Submit/Skip */}
                     {submitResult && (
                         <div className="result-overlay">
                             <div className={`result-badge ${submitResult}`}>
