@@ -75,7 +75,7 @@ const AdminDashboard: React.FC = () => {
                     <h2 style={{ marginBottom: '1.5rem' }}>Practice Stats</h2>
 
                     {/* By Learner */}
-                    <h3 style={{ color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
+                    <h3 style={{ color: '#475569', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
                         By Learner
                     </h3>
                     <table className="summary-table" style={{ marginBottom: '2rem' }}>
@@ -88,13 +88,13 @@ const AdminDashboard: React.FC = () => {
                         </thead>
                         <tbody>
                             {practiceStats.perLearner.length === 0 && (
-                                <tr><td colSpan={3} style={{ color: '#64748b' }}>No sessions yet.</td></tr>
+                                <tr><td colSpan={3} style={{ color: '#475569' }}>No sessions yet.</td></tr>
                             )}
                             {practiceStats.perLearner.map(l => (
                                 <tr key={l.learnerId}>
                                     <td>{l.name}</td>
                                     <td>{l.sessionCount}</td>
-                                    <td style={{ color: l.avgPassRate >= 70 ? '#22c55e' : l.avgPassRate >= 50 ? '#eab308' : '#f87171' }}>
+                                    <td style={{ color: l.avgPassRate >= 70 ? '#16a34a' : l.avgPassRate >= 50 ? '#d97706' : '#dc2626' }}>
                                         {l.avgPassRate}%
                                     </td>
                                 </tr>
@@ -103,7 +103,7 @@ const AdminDashboard: React.FC = () => {
                     </table>
 
                     {/* By Lesson */}
-                    <h3 style={{ color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
+                    <h3 style={{ color: '#475569', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.75rem' }}>
                         By Lesson
                     </h3>
                     <table className="summary-table" style={{ marginBottom: '2rem' }}>
@@ -116,15 +116,15 @@ const AdminDashboard: React.FC = () => {
                         </thead>
                         <tbody>
                             {practiceStats.perLesson.length === 0 && (
-                                <tr><td colSpan={3} style={{ color: '#64748b' }}>No data yet.</td></tr>
+                                <tr><td colSpan={3} style={{ color: '#475569' }}>No data yet.</td></tr>
                             )}
                             {practiceStats.perLesson.map(l => (
                                 <tr key={l.lessonId}>
                                     <td>{l.title}</td>
-                                    <td style={{ color: l.avgPassRate >= 70 ? '#22c55e' : l.avgPassRate >= 50 ? '#eab308' : '#f87171' }}>
+                                    <td style={{ color: l.avgPassRate >= 70 ? '#16a34a' : l.avgPassRate >= 50 ? '#d97706' : '#dc2626' }}>
                                         {l.avgPassRate}%
                                     </td>
-                                    <td style={{ color: '#94a3b8', fontSize: '0.8rem' }}>
+                                    <td style={{ color: '#64748b', fontSize: '0.8rem' }}>
                                         {l.hardestSigns.join(', ') || '—'}
                                     </td>
                                 </tr>
@@ -133,9 +133,9 @@ const AdminDashboard: React.FC = () => {
                     </table>
 
                     {/* By Sign (bottom signs by pass rate) */}
-                    <h3 style={{ color: '#94a3b8', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
+                    <h3 style={{ color: '#475569', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>
                         By Sign
-                        <span style={{ fontSize: '0.75rem', marginLeft: '0.75rem', fontWeight: 400, textTransform: 'none', color: '#64748b' }}>
+                        <span style={{ fontSize: '0.75rem', marginLeft: '0.75rem', fontWeight: 400, textTransform: 'none', color: '#475569' }}>
                             🟡 Ghost Sign (avoid but pass) &nbsp; 🔴 Broken Sign (fail + skip) &nbsp; 🟢 Solid
                         </span>
                     </h3>
@@ -150,7 +150,7 @@ const AdminDashboard: React.FC = () => {
                         </thead>
                         <tbody>
                             {practiceStats.perSign.length === 0 && (
-                                <tr><td colSpan={4} style={{ color: '#64748b' }}>No attempt data yet.</td></tr>
+                                <tr><td colSpan={4} style={{ color: '#475569' }}>No attempt data yet.</td></tr>
                             )}
                             {practiceStats.perSign.map(s => (
                                 <tr key={s.signName} className={signClass(s)}>

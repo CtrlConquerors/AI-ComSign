@@ -55,6 +55,7 @@ const PracticePage: React.FC = () => {
         <div className="practice-root">
             <div className="practice-shell">
                 <header>
+                    <Link to="/" className="secondary-button small" style={{ textDecoration: 'none' }}>← Back to Home</Link>
                     <h1 className="practice-title">Practice Mode</h1>
                     <p className="practice-subtitle">
                         Choose a lesson — sign each word on camera and get graded instantly.

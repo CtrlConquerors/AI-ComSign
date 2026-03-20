@@ -132,6 +132,7 @@ const LessonPage: React.FC = () => {
         <div className="app-root">
             <div className="app-shell">
                 <header className="app-header">
+                    <Link to="/" className="secondary-button small" style={{ textDecoration: 'none' }}>← Back to Home</Link>
                     <h1 className="app-title">
                         Lessons <span className="mode-tag">Practice path</span>
                     </h1>

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import Webcam from "react-webcam";
 import {
     FilesetResolver,
@@ -720,6 +721,7 @@ const DeepMotionDemo: React.FC = () => {
         <div className="app-root">
             <div className="app-shell">
                 <header className="app-header">
+                    <Link to="/" className="secondary-button small" style={{ textDecoration: 'none' }}>← Back to Home</Link>
                     <h1 className="app-title">
                         AI-ComSign <span className="mode-tag">(KNN Mode)</span>
                     </h1>
