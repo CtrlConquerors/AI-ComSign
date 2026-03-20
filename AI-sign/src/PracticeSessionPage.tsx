@@ -20,14 +20,14 @@ const HISTORY_MIN_VOTES = 7;
 // ── Auto-submit tuning ─────────────────────────────────────────────────────
 const AUTO_SUBMIT_ENABLED = true;
 const AUTO_SUBMIT_MIN_CONFIDENCE = 60; // %
-const AUTO_SUBMIT_HOLD_MS = 90; // must stay matched for this long
+const AUTO_SUBMIT_HOLD_MS = 80; // must stay matched for this long
 
 // ── Auto-next tuning ───────────────────────────────────────────────────────
 const AUTO_NEXT_ENABLED = true;
-const AUTO_NEXT_DELAY_MS = 1000;
+const AUTO_NEXT_DELAY_MS = 1500;
 
 // ── PASS FX tuning ─────────────────────────────────────────────────────────
-const PASS_FX_DURATION_MS = 900;
+const PASS_FX_DURATION_MS = 1500;
 
 // ── Weighted distance (same algorithm as App.tsx) ───────────────────────────
 const normalizeLandmarks = (lm: Landmark[]): Landmark[] => {

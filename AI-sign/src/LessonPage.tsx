@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './App.css'; // reuse existing typography/layout styles
 
@@ -43,6 +43,8 @@ const LessonPage: React.FC = () => {
 
     // which sign in the current lesson the learner is on (for the practice panel)
     const [activeSignIndex, setActiveSignIndex] = useState<number>(0);
+
+    const [fallbackVideoError, setFallbackVideoError] = useState<boolean>(false);
 
     // ---- load all lessons on mount ----
     useEffect(() => {
@@ -119,14 +121,26 @@ const LessonPage: React.FC = () => {
         setActiveSignIndex((prev) => (prev - 1 >= 0 ? prev - 1 : prev));
     };
 
-    // For now this is still a stub; navigation happens via Link below
-    const handlePracticeCurrentSign = () => {
-        if (!activeSign) return;
-        alert(
-            `Practice sign: ${activeSign.signName}\n` +
-            `Stored landmarks: ${activeSign.landmarks?.length ?? 0}`
-        );
+    // Vite public/ -> served at site root
+    const publicVideoUrl = (signName: string) => {
+        const key = signName.trim().toLowerCase();
+        return `/${encodeURIComponent(key)}.mp4`;
     };
+
+    // reset fallback state when sign changes
+    useEffect(() => {
+        setFallbackVideoError(false);
+    }, [activeSign?.signName]);
+
+    const fallbackSrc = useMemo(() => {
+        if (!activeSign) return null;
+        return publicVideoUrl(activeSign.signName);
+    }, [activeSign]);
+
+    const translatorUrl = useMemo(() => {
+        if (!activeSign) return null;
+        return `/translator?sign=${encodeURIComponent(activeSign.signName)}`;
+    }, [activeSign]);
 
     return (
         <div className="app-root">
@@ -147,7 +161,7 @@ const LessonPage: React.FC = () => {
                         <div className="section-head">
                             <p className="eyebrow">Lessons</p>
                             {loadingLessons && (
-                                <p className="loading-text">Loading lessons�</p>
+                                <p className="loading-text">Loading lessons…</p>
                             )}
                             {lessonsError && (
                                 <p className="loading-text" style={{ color: '#f97373' }}>
@@ -207,7 +221,7 @@ const LessonPage: React.FC = () => {
                         {selectedLessonId && (
                             <>
                                 {loadingSigns && (
-                                    <p className="loading-text">Loading signs�</p>
+                                    <p className="loading-text">Loading signs…</p>
                                 )}
                                 {signsError && (
                                     <p className="loading-text" style={{ color: '#f97373' }}>
@@ -216,93 +230,115 @@ const LessonPage: React.FC = () => {
                                 )}
 
                                 {!loadingSigns && !signsError && (
-                                    <>
-                                        {/* List of signs in this lesson */}
-                                        <ul className="lesson-sign-list">
-                                            {lessonSigns.map((s, idx) => (
-                                                <li
-                                                    key={s.id}
-                                                    className={
-                                                        'lesson-sign-item' +
-                                                        (idx === activeSignIndex
-                                                            ? ' lesson-sign-item-active'
-                                                            : '')
-                                                    }
-                                                >
-                                                    {/* Clicking the name just selects it */}
-                                                    <button
-                                                        type="button"
-                                                        className="lesson-sign-name"
-                                                        onClick={() => setActiveSignIndex(idx)}
-                                                    >
-                                                        {s.signName}
-                                                    </button>
-
-                                                    {/* This Link actually navigates using react-router-dom */}
-                                                    <Link
-                                                        className="lesson-sign-link"
-                                                        to={`/translator?sign=${encodeURIComponent(
-                                                            s.signName
-                                                        )}`}
-                                                    >
-                                                        Practice
-                                                    </Link>
-                                                </li>
-                                            ))}
-                                            {lessonSigns.length === 0 && (
-                                                <li className="loading-text">
-                                                    No signs for this lesson yet.
-                                                </li>
-                                            )}
-                                        </ul>
-
-                                        {/* Practice area for the selected sign (on this page) */}
-                                        {activeSign && (
-                                            <div className="lesson-practice-panel">
-                                                <h3>Now learning: {activeSign.signName}</h3>
-                                                <p className="lesson-practice-hint">
-                                                    We will use the recorded hand landmarks to help
-                                                    you practice this sign with your camera.
-                                                </p>
-
-                                                <div className="lesson-skeleton-preview">
-                                                    <p>
-                                                        Stored landmarks:{' '}
-                                                        {activeSign.landmarks?.length ?? 0}
-                                                    </p>
-                                                    {activeSign.fileName && (
-                                                        <p>Sample file: {activeSign.fileName}</p>
-                                                    )}
-                                                </div>
-
-                                                <div className="lesson-practice-actions">
-                                                    <button
-                                                        type="button"
-                                                        onClick={handlePrevSign}
-                                                        disabled={activeSignIndex === 0}
-                                                    >
-                                                        Previous
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={handlePracticeCurrentSign}
-                                                    >
-                                                        Practice with camera
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleNextSign}
-                                                        disabled={
-                                                            activeSignIndex ===
-                                                            lessonSigns.length - 1
+                                    <div className="lesson-detail-grid">
+                                        {/* Sign list scrolls */}
+                                        <div className="lesson-signs-col">
+                                            <ul className="lesson-sign-list">
+                                                {lessonSigns.map((s, idx) => (
+                                                    <li
+                                                        key={s.id}
+                                                        className={
+                                                            'lesson-sign-item' +
+                                                            (idx === activeSignIndex
+                                                                ? ' lesson-sign-item-active'
+                                                                : '')
                                                         }
                                                     >
-                                                        Next
-                                                    </button>
+                                                        <button
+                                                            type="button"
+                                                            className="lesson-sign-name"
+                                                            onClick={() => setActiveSignIndex(idx)}
+                                                        >
+                                                            {s.signName}
+                                                        </button>
+                                                    </li>
+                                                ))}
+                                                {lessonSigns.length === 0 && (
+                                                    <li className="loading-text">
+                                                        No signs for this lesson yet.
+                                                    </li>
+                                                )}
+                                            </ul>
+                                        </div>
+
+                                        {/* Sticky preview + controls */}
+                                        <div className="lesson-preview-col">
+                                            {activeSign && (
+                                                <div className="lesson-practice-panel lesson-practice-panel--sticky">
+                                                    <div className="lesson-practice-top">
+                                                        <div>
+                                                            <h3 className="lesson-now-title">
+                                                                Now learning: <span className="lesson-now-sign">{activeSign.signName}</span>
+                                                            </h3>
+                                                            <p className="lesson-practice-hint">
+                                                                Watch the sample, then try with your camera.
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="lesson-practice-actions lesson-practice-actions--compact">
+                                                            <button
+                                                                type="button"
+                                                                onClick={handlePrevSign}
+                                                                disabled={activeSignIndex === 0}
+                                                            >
+                                                                Previous
+                                                            </button>
+
+                                                            {translatorUrl ? (
+                                                                <Link
+                                                                    to={translatorUrl}
+                                                                    className="secondary-button small"
+                                                                    style={{ textDecoration: 'none' }}
+                                                                >
+                                                                    Practice
+                                                                </Link>
+                                                            ) : (
+                                                                <button type="button" disabled>
+                                                                    Practice
+                                                                </button>
+                                                            )}
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleNextSign}
+                                                                disabled={activeSignIndex === lessonSigns.length - 1}
+                                                            >
+                                                                Next
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="lesson-skeleton-preview">
+                                                        <p className="lesson-meta-row">
+                                                            Stored landmarks: <strong>{activeSign.landmarks?.length ?? 0}</strong>
+                                                        </p>
+
+                                                        {fallbackSrc && !fallbackVideoError && (
+                                                            <video
+                                                                key={fallbackSrc}
+                                                                className="lesson-sample-video"
+                                                                src={fallbackSrc}
+                                                                controls
+                                                                playsInline
+                                                                preload="metadata"
+                                                                onError={() => setFallbackVideoError(true)}
+                                                            />
+                                                        )}
+
+                                                        {fallbackSrc && fallbackVideoError && (
+                                                            <p className="loading-text">
+                                                                No sample video found at: <code>{fallbackSrc}</code>
+                                                            </p>
+                                                        )}
+
+                                                        {activeSign.fileName && (
+                                                            <p className="lesson-db-label">DB label: {activeSign.fileName}</p>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
-                                    </>
+                                            )}
+                                        </div>
+                                    </div>
                                 )}
                             </>
                         )}
