@@ -26,6 +26,9 @@ const AUTO_SUBMIT_HOLD_MS = 90; // must stay matched for this long
 const AUTO_NEXT_ENABLED = true;
 const AUTO_NEXT_DELAY_MS = 1000;
 
+// ── PASS FX tuning ─────────────────────────────────────────────────────────
+const PASS_FX_DURATION_MS = 900;
+
 // ── Weighted distance (same algorithm as App.tsx) ───────────────────────────
 const normalizeLandmarks = (lm: Landmark[]): Landmark[] => {
     if (!lm || lm.length === 0) return [];
@@ -113,6 +116,19 @@ const PracticeSessionPage: React.FC = () => {
     const autoSubmitTimerRef = useRef<number | null>(null);
     const autoNextTimerRef = useRef<number | null>(null);
 
+    // ── PASS FX (confetti) ────────────────────────────────────────────────
+    const [passFxBurstId, setPassFxBurstId] = useState(0);
+    const passFxTimerRef = useRef<number | null>(null);
+
+    const triggerPassFx = useCallback(() => {
+        setPassFxBurstId(v => v + 1);
+
+        if (passFxTimerRef.current) window.clearTimeout(passFxTimerRef.current);
+        passFxTimerRef.current = window.setTimeout(() => {
+            passFxTimerRef.current = null;
+        }, PASS_FX_DURATION_MS);
+    }, []);
+
     const targetSign = signNames[currentIndex] ?? '';
     const isMatch = stablePrediction.toLowerCase() === targetSign.toLowerCase() && stablePrediction !== '';
 
@@ -130,6 +146,7 @@ const PracticeSessionPage: React.FC = () => {
             if (comboFxTimerRef.current) window.clearTimeout(comboFxTimerRef.current);
             if (autoSubmitTimerRef.current) window.clearTimeout(autoSubmitTimerRef.current);
             if (autoNextTimerRef.current) window.clearTimeout(autoNextTimerRef.current);
+            if (passFxTimerRef.current) window.clearTimeout(passFxTimerRef.current);
         };
     }, []);
 
@@ -208,6 +225,9 @@ const PracticeSessionPage: React.FC = () => {
             setXp(prev => prev + 20 + bonus + streakBonus);
             setStreak(prev => prev + 1);
             pulseFx('hit');
+
+            // ✅ PASS fireworks/confetti
+            triggerPassFx();
         } else {
             setStreak(0);
             setLives(prev => Math.max(0, prev - 1));
@@ -217,7 +237,7 @@ const PracticeSessionPage: React.FC = () => {
         setSubmitResult(result);
         setSubmitConfidence(score);
         setSubmitting(false);
-    }, [confidence, sessionId, stablePrediction, streak, submitting, targetSign]);
+    }, [confidence, sessionId, stablePrediction, streak, submitting, targetSign, triggerPassFx]);
 
     const handleSkip = async () => {
         if (submitting || !sessionId) return;
@@ -572,6 +592,35 @@ const PracticeSessionPage: React.FC = () => {
                         videoConstraints={{ facingMode: 'user' }}
                     />
                     <canvas ref={canvasRef} className="practice-canvas" />
+
+                    {/* PASS confetti (plays on PASS; stays below the result overlay) */}
+                    <div className="pass-fx-layer" aria-hidden="true">
+                        {submitResult === null &&
+                            Array.from({ length: 28 }).map((_, i) => {
+                                const dx = (((i * 37) % 120) - 60); // vw
+                                const dy = -(70 + ((i * 29) % 110)); // vh
+                                const rot = (i * 57) % 360;
+                                const delayMs = (i % 10) * 12;
+                                const hue = (i * 22) % 360;
+
+                                return (
+                                    <span
+                                        key={`${passFxBurstId}-${i}`}
+                                        className="confetti"
+                                        style={{
+                                            left: `${(i * 7) % 100}%`,
+                                            top: `${45 + (i % 5) * 6}%`,
+                                            backgroundColor: `hsl(${hue} 90% 60%)`,
+                                            animationDelay: `${delayMs}ms`,
+                                            transform: `translate3d(0, 10px, 0) rotate(0deg) scale(0.75)`,
+                                        }}
+                                        data-dx={`${dx}vw`}
+                                        data-dy={`${dy}vh`}
+                                        data-rot={`${rot}deg`}
+                                    />
+                                );
+                            })}
+                    </div>
 
                     {submitResult && (
                         <div className="result-overlay">

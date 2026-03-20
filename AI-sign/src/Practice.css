@@ -529,7 +529,48 @@
 .sign-solid .sign-name-cell {
     color: #22c55e;
 }
+/* ── PASS FX: confetti / fireworks ───────────────────────────── */
+.pass-fx-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 6; /* above canvas/video, below result overlay (z-index:10) */
+}
 
+.confetti {
+    position: absolute;
+    width: 10px;
+    height: 12px;
+    border-radius: 3px;
+    opacity: 0;
+    filter: drop-shadow(0 0 10px rgba(34, 197, 94, 0.18));
+    animation: confettiPop 900ms cubic-bezier(.12, .8, .2, 1) both;
+}
+
+/* Use attr() to pull typed strings like "12vw" / "-90vh" / "120deg" */
+@keyframes confettiPop {
+    0% {
+        opacity: 0;
+        transform: translate3d(0, 10px, 0) rotate(0deg) scale(0.75);
+    }
+
+    12% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate3d(attr(data-dx length), attr(data-dy length), 0) rotate(attr(data-rot angle)) scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .confetti {
+        animation: none;
+        display: none;
+    }
+}
 /* responsive HUD */
 @media (max-width: 640px) {
     .session-hud {
