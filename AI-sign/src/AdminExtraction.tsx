@@ -4,7 +4,6 @@ import {
     HandLandmarker,
     type HandLandmarkerResult,
 } from "@mediapipe/tasks-vision";
-import { Link } from "react-router-dom";
 import "./AdminExtraction.css";
 
 const API_BASE = "http://localhost:5197";
@@ -304,187 +303,160 @@ const AdminExtraction: React.FC = () => {
     const totalSamples = stats.reduce((sum, s) => sum + s.count, 0);
 
     return (
-        <div className="admin-page">
-            <div className="admin-shell">
-                <Link to="/" className="admin-back">
-                    <span>⬅</span>
-                    <span>Back to Home</span>
-                </Link>
+        <div>
+            <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                Multi-frame extraction with augmentation for improved accuracy.
+                Each video produces up to {config.frameTimestamps.length * getAugmentationMultiplier(config)} samples.
+            </p>
 
-                <div className="admin-title-row">
-                    <span className="admin-icon">🛠️</span>
-                    <h1 className="admin-title">Admin Data Extractor</h1>
+            {/* Extraction Config */}
+            <div className="admin-table-container" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
+                <h3 style={{ margin: '0 0 0.75rem', color: '#475569', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                    Extraction Settings
+                </h3>
+                <div className="extraction-config-row">
+                    <label className="extraction-config-checkbox">
+                        <input
+                            type="checkbox"
+                            checked={config.enableAugmentation}
+                            onChange={(e) =>
+                                setConfig({ ...config, enableAugmentation: e.target.checked })
+                            }
+                            disabled={isProcessing}
+                        />
+                        <span>Enable augmentation (mirror + rotation)</span>
+                    </label>
+                    <span className="extraction-config-info">
+                        Frames: {config.frameTimestamps.length} &nbsp;|&nbsp;
+                        Multiplier: {config.enableAugmentation ? getAugmentationMultiplier(config) : 1}x
+                    </span>
                 </div>
-                <p className="admin-subtitle">
-                    Multi-frame extraction with augmentation for improved accuracy.
-                    Each video produces up to {config.frameTimestamps.length * getAugmentationMultiplier(config)} samples.
-                </p>
+            </div>
 
-                {/* Extraction Config */}
-                <section className="admin-config-section">
-                    <label className="admin-label">Extraction Settings</label>
-                    <div className="config-row">
-                        <label className="config-checkbox">
-                            <input
-                                type="checkbox"
-                                checked={config.enableAugmentation}
-                                onChange={(e) =>
-                                    setConfig({ ...config, enableAugmentation: e.target.checked })
-                                }
-                                disabled={isProcessing}
-                            />
-                            <span>Enable augmentation (mirror + rotation)</span>
-                        </label>
-                        <span className="config-info">
-                            Frames: {config.frameTimestamps.length} |
-                            Multiplier: {config.enableAugmentation ? getAugmentationMultiplier(config) : 1}x
-                        </span>
-                    </div>
-                </section>
-
-                {/* File Input */}
-                <section className="admin-file-section">
-                    <label className="admin-label">Video batch input</label>
-
-                    <div className="file-drop-zone">
-                        <div className="file-drop-text">
-                            {isProcessing
-                                ? "Processing... please wait"
-                                : handLandmarker
-                                    ? "Drag videos here or click 'Choose files'"
-                                    : "Loading AI model..."}
-                        </div>
-
-                        <label className="file-input-button">
-                            <span>Choose files</span>
-                            <input
-                                type="file"
-                                multiple
-                                accept="video/*"
-                                onChange={handleFiles}
-                                disabled={isProcessing || !handLandmarker}
-                            />
-                        </label>
-                    </div>
-
-                    <div className="admin-status-bar">
-                        <span className="status-dot" />
-                        <span>
-                            {handLandmarker
-                                ? isProcessing
-                                    ? "Processing videos..."
-                                    : "AI model ready."
+            {/* File Input */}
+            <div className="admin-table-container" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
+                <h3 style={{ margin: '0 0 0.75rem', color: '#475569', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                    Video Batch Input
+                </h3>
+                <div className="extraction-drop-zone">
+                    <span className="extraction-drop-text">
+                        {isProcessing
+                            ? "Processing... please wait"
+                            : handLandmarker
+                                ? "Select video files to process"
                                 : "Loading AI model..."}
+                    </span>
+                    <label className="admin-action-btn promote extraction-file-label">
+                        Choose files
+                        <input
+                            type="file"
+                            multiple
+                            accept="video/*"
+                            onChange={handleFiles}
+                            disabled={isProcessing || !handLandmarker}
+                            style={{ display: 'none' }}
+                        />
+                    </label>
+                </div>
+                <div className="extraction-status-bar">
+                    <span className="extraction-status-dot" />
+                    <span>
+                        {handLandmarker
+                            ? isProcessing
+                                ? "Processing videos..."
+                                : "AI model ready."
+                            : "Loading AI model..."}
+                    </span>
+                </div>
+            </div>
+
+            {/* Hidden video for extraction */}
+            <video ref={videoRef} style={{ display: "none" }} muted />
+
+            {/* Log Panel */}
+            <div className="admin-table-container" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
+                <h3 style={{ margin: '0 0 0.75rem', color: '#475569', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                    Extraction Log
+                </h3>
+                <textarea
+                    className="extraction-log-box"
+                    readOnly
+                    value={logs.join("\n")}
+                />
+            </div>
+
+            {/* Action Buttons */}
+            {extractedData.length > 0 && !isProcessing && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.875rem', color: '#475569', fontWeight: 500 }}>
+                        Extracted: <strong style={{ color: '#0f172a' }}>{extractedData.length}</strong> samples
+                    </span>
+                    <button type="button" className="admin-action-btn" onClick={downloadJSON}>
+                        💾 Download JSON
+                    </button>
+                    <button type="button" className="admin-action-btn promote" onClick={saveToDb}>
+                        ☁️ Save to DB
+                    </button>
+                </div>
+            )}
+
+            {/* Dataset Statistics */}
+            <div className="admin-table-container" style={{ padding: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h3 style={{ margin: 0, flex: 1, color: '#475569', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                        Dataset Statistics
+                        <span style={{ marginLeft: '1rem', color: '#94a3b8', fontWeight: 400, textTransform: 'none', fontSize: '0.75rem' }}>
+                            {totalSamples} samples &nbsp;·&nbsp; {stats.length} signs
                         </span>
-                    </div>
-                </section>
+                    </h3>
+                    <button type="button" className="admin-action-btn" onClick={() => setShowStats(!showStats)}>
+                        {showStats ? "Hide" : "Show"}
+                    </button>
+                    <button type="button" className="admin-action-btn" style={{ marginLeft: '0.5rem' }} onClick={fetchStats}>
+                        🔄 Refresh
+                    </button>
+                </div>
 
-                {/* Hidden video for extraction */}
-                <video ref={videoRef} style={{ display: "none" }} muted />
-
-                {/* Log Panel */}
-                <section className="admin-log-panel">
-                    <label className="admin-label">Extraction log</label>
-                    <textarea
-                        className="admin-log-box"
-                        readOnly
-                        value={logs.join("\n")}
-                    />
-                </section>
-
-                {/* Action Buttons */}
-                <section className="admin-actions">
-                    {extractedData.length > 0 && !isProcessing && (
-                        <>
-                            <span className="admin-chip-btn">
-                                Extracted: {extractedData.length} samples
-                            </span>
-                            <button
-                                type="button"
-                                className="admin-chip-btn"
-                                onClick={downloadJSON}
-                            >
-                                💾 Download JSON
-                            </button>
-                            <button
-                                type="button"
-                                className="admin-chip-btn primary"
-                                onClick={saveToDb}
-                            >
-                                ☁️ Save to DB
-                            </button>
-                        </>
-                    )}
-                </section>
-
-                {/* Dataset Statistics */}
-                <section className="admin-stats-section">
-                    <div className="stats-header">
-                        <label className="admin-label">Dataset Statistics</label>
-                        <button
-                            type="button"
-                            className="stats-toggle"
-                            onClick={() => setShowStats(!showStats)}
-                        >
-                            {showStats ? "Hide" : "Show"}
-                        </button>
-                        <button
-                            type="button"
-                            className="stats-refresh"
-                            onClick={fetchStats}
-                        >
-                            🔄 Refresh
-                        </button>
-                    </div>
-
-                    {showStats && (
-                        <div className="stats-content">
-                            <div className="stats-summary">
-                                <span>Total samples: <strong>{totalSamples}</strong></span>
-                                <span>Signs: <strong>{stats.length}</strong></span>
-                            </div>
-
-                            {stats.length > 0 ? (
-                                <table className="stats-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Sign</th>
-                                            <th>Count</th>
-                                            <th>Status</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {stats.map((s) => (
-                                            <tr key={s.signName} className={s.count < 10 ? "low-count" : ""}>
-                                                <td className="sign-name">{s.signName.toUpperCase()}</td>
-                                                <td>{s.count}</td>
-                                                <td>
-                                                    {s.count >= 10 ? (
-                                                        <span className="status-ok">✓</span>
-                                                    ) : (
-                                                        <span className="status-warn">⚠ Need more</span>
-                                                    )}
-                                                </td>
-                                                <td>
-                                                    <button
-                                                        type="button"
-                                                        className="delete-btn"
-                                                        onClick={() => deleteSign(s.signName)}
-                                                    >
-                                                        🗑️
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : (
-                                <p className="stats-empty">No data in database yet.</p>
-                            )}
-                        </div>
-                    )}
-                </section>
+                {showStats && (
+                    stats.length > 0 ? (
+                        <table className="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Sign</th>
+                                    <th>Count</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {stats.map((s) => (
+                                    <tr key={s.signName}>
+                                        <td style={{ fontWeight: 600 }}>{s.signName.toUpperCase()}</td>
+                                        <td>{s.count}</td>
+                                        <td>
+                                            {s.count >= 10 ? (
+                                                <span style={{ color: '#16a34a', fontWeight: 600 }}>✓ Good</span>
+                                            ) : (
+                                                <span style={{ color: '#d97706', fontSize: '0.8rem' }}>⚠ Need more</span>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <button
+                                                type="button"
+                                                className="admin-action-btn delete"
+                                                onClick={() => deleteSign(s.signName)}
+                                            >
+                                                Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <p style={{ color: '#94a3b8', textAlign: 'center', padding: '1rem 0' }}>No data in database yet.</p>
+                    )
+                )}
             </div>
         </div>
     );
