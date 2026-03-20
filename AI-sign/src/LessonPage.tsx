@@ -46,6 +46,9 @@ const LessonPage: React.FC = () => {
 
     const [fallbackVideoError, setFallbackVideoError] = useState<boolean>(false);
 
+    // Sign search (per lesson)
+    const [signQuery, setSignQuery] = useState<string>('');
+
     // ---- load all lessons on mount ----
     useEffect(() => {
         const loadLessons = async () => {
@@ -78,6 +81,7 @@ const LessonPage: React.FC = () => {
         setSignsError(null);
         setLoadingSigns(true);
         setActiveSignIndex(0); // reset to first sign
+        setSignQuery('');
 
         try {
             const res = await fetch(`/api/sign/lesson/${lessonId}`);
@@ -87,13 +91,16 @@ const LessonPage: React.FC = () => {
                 );
             }
             const data: LessonSignDto[] = await res.json();
+
             // Keep one representative sample per unique sign name
             const seen = new Set<string>();
             const unique = data.filter(s => {
-                if (seen.has(s.signName)) return false;
-                seen.add(s.signName);
+                const key = s.signName.trim().toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
                 return true;
             });
+
             setLessonSigns(unique);
         } catch (err: unknown) {
             const message =
@@ -142,11 +149,36 @@ const LessonPage: React.FC = () => {
         return `/translator?sign=${encodeURIComponent(activeSign.signName)}`;
     }, [activeSign]);
 
+    const filteredSigns = useMemo(() => {
+        const q = signQuery.trim().toLowerCase();
+        if (!q) return lessonSigns;
+
+        return lessonSigns.filter(s => s.signName.toLowerCase().includes(q));
+    }, [lessonSigns, signQuery]);
+
+    // Keep selection valid when filtering
+    useEffect(() => {
+        if (!activeSign) return;
+        if (filteredSigns.length === 0) return;
+
+        const idxInFiltered = filteredSigns.findIndex(
+            s => s.signName === activeSign.signName
+        );
+        if (idxInFiltered >= 0) return;
+
+        // If current active sign is filtered out, jump to first match
+        const first = filteredSigns[0];
+        const originalIndex = lessonSigns.findIndex(s => s.id === first.id);
+        if (originalIndex >= 0) setActiveSignIndex(originalIndex);
+    }, [activeSign, filteredSigns, lessonSigns]);
+
     return (
         <div className="app-root">
             <div className="app-shell">
                 <header className="app-header">
-                    <Link to="/" className="secondary-button small" style={{ textDecoration: 'none' }}>← Back to Home</Link>
+                    <Link to="/" className="secondary-button small" style={{ textDecoration: 'none' }}>
+                        ← Back to Home
+                    </Link>
                     <h1 className="app-title">
                         Lessons <span className="mode-tag">Practice path</span>
                     </h1>
@@ -160,9 +192,7 @@ const LessonPage: React.FC = () => {
                     <div className="lesson-list">
                         <div className="section-head">
                             <p className="eyebrow">Lessons</p>
-                            {loadingLessons && (
-                                <p className="loading-text">Loading lessons…</p>
-                            )}
+                            {loadingLessons && <p className="loading-text">Loading lessons…</p>}
                             {lessonsError && (
                                 <p className="loading-text" style={{ color: '#f97373' }}>
                                     {lessonsError}
@@ -177,9 +207,7 @@ const LessonPage: React.FC = () => {
                                         type="button"
                                         className={
                                             'lesson-card' +
-                                            (lesson.id === selectedLessonId
-                                                ? ' lesson-card-selected'
-                                                : '')
+                                            (lesson.id === selectedLessonId ? ' lesson-card-selected' : '')
                                         }
                                         onClick={() => void handleSelectLesson(lesson.id)}
                                     >
@@ -187,16 +215,10 @@ const LessonPage: React.FC = () => {
                                             <span className="lesson-card-title">
                                                 {lesson.title ?? `Lesson ${lesson.id}`}
                                             </span>
-                                            {lesson.level && (
-                                                <span className="lesson-badge">
-                                                    {lesson.level}
-                                                </span>
-                                            )}
+                                            {lesson.level && <span className="lesson-badge">{lesson.level}</span>}
                                         </div>
                                         {lesson.description && (
-                                            <p className="lesson-card-desc">
-                                                {lesson.description}
-                                            </p>
+                                            <p className="lesson-card-desc">{lesson.description}</p>
                                         )}
                                     </button>
                                 </li>
@@ -220,9 +242,7 @@ const LessonPage: React.FC = () => {
 
                         {selectedLessonId && (
                             <>
-                                {loadingSigns && (
-                                    <p className="loading-text">Loading signs…</p>
-                                )}
+                                {loadingSigns && <p className="loading-text">Loading signs…</p>}
                                 {signsError && (
                                     <p className="loading-text" style={{ color: '#f97373' }}>
                                         {signsError}
@@ -231,32 +251,44 @@ const LessonPage: React.FC = () => {
 
                                 {!loadingSigns && !signsError && (
                                     <div className="lesson-detail-grid">
-                                        {/* Sign list scrolls */}
+                                        {/* Sign list */}
                                         <div className="lesson-signs-col">
-                                            <ul className="lesson-sign-list">
-                                                {lessonSigns.map((s, idx) => (
-                                                    <li
-                                                        key={s.id}
-                                                        className={
-                                                            'lesson-sign-item' +
-                                                            (idx === activeSignIndex
-                                                                ? ' lesson-sign-item-active'
-                                                                : '')
-                                                        }
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            className="lesson-sign-name"
-                                                            onClick={() => setActiveSignIndex(idx)}
+                                            <div className="lesson-signs-toolbar">
+                                                <input
+                                                    className="lesson-sign-search"
+                                                    value={signQuery}
+                                                    onChange={(e) => setSignQuery(e.target.value)}
+                                                    placeholder="Search signs…"
+                                                    aria-label="Search signs"
+                                                />
+                                                <div className="lesson-sign-count">
+                                                    {filteredSigns.length} / {lessonSigns.length}
+                                                </div>
+                                            </div>
+
+                                            <ul className="lesson-sign-list lesson-sign-list--cards">
+                                                {filteredSigns.map((s) => {
+                                                    const originalIndex = lessonSigns.findIndex(x => x.id === s.id);
+                                                    const isActive = originalIndex === activeSignIndex;
+
+                                                    return (
+                                                        <li
+                                                            key={s.id}
+                                                            className={'lesson-sign-item' + (isActive ? ' lesson-sign-item-active' : '')}
                                                         >
-                                                            {s.signName}
-                                                        </button>
-                                                    </li>
-                                                ))}
-                                                {lessonSigns.length === 0 && (
-                                                    <li className="loading-text">
-                                                        No signs for this lesson yet.
-                                                    </li>
+                                                            <button
+                                                                type="button"
+                                                                className="lesson-sign-name"
+                                                                onClick={() => setActiveSignIndex(originalIndex)}
+                                                            >
+                                                                {s.signName}
+                                                            </button>
+                                                        </li>
+                                                    );
+                                                })}
+
+                                                {filteredSigns.length === 0 && (
+                                                    <li className="loading-text">No matches.</li>
                                                 )}
                                             </ul>
                                         </div>
@@ -268,7 +300,8 @@ const LessonPage: React.FC = () => {
                                                     <div className="lesson-practice-top">
                                                         <div>
                                                             <h3 className="lesson-now-title">
-                                                                Now learning: <span className="lesson-now-sign">{activeSign.signName}</span>
+                                                                Now learning:{' '}
+                                                                <span className="lesson-now-sign">{activeSign.signName}</span>
                                                             </h3>
                                                             <p className="lesson-practice-hint">
                                                                 Watch the sample, then try with your camera.
@@ -310,7 +343,8 @@ const LessonPage: React.FC = () => {
 
                                                     <div className="lesson-skeleton-preview">
                                                         <p className="lesson-meta-row">
-                                                            Stored landmarks: <strong>{activeSign.landmarks?.length ?? 0}</strong>
+                                                            Stored landmarks:{' '}
+                                                            <strong>{activeSign.landmarks?.length ?? 0}</strong>
                                                         </p>
 
                                                         {fallbackSrc && !fallbackVideoError && (
