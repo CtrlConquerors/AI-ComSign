@@ -5,6 +5,7 @@ import api from './api/axios';
 
 function HomePage() {
     const flashlightRef = useRef<HTMLDivElement | null>(null);
+    const userMenuRef = useRef<HTMLDivElement | null>(null);
     const navigate = useNavigate();
 
     const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -13,6 +14,7 @@ function HomePage() {
 
     // ADD: mobile nav state
     const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+    const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -43,11 +45,35 @@ function HomePage() {
         return () => window.removeEventListener("resize", onResize);
     }, []);
 
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+                setIsUserMenuOpen(false);
+            }
+        };
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsUserMenuOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, []);
+
     const fetchUserProfile = async () => {
         try {
             const res = await api.get('/Auth/profile');
-            setUserName(res.data.name);
-            setUserRole(res.data.role);
+            const profile = res.data ?? {};
+            const displayName = profile.fullName || profile.name || profile.email || "User";
+
+            setUserName(displayName);
+            setUserRole(profile.role || "");
         } catch (err) {
             console.error("Không lấy được profile:", err);
             handleLogout();
@@ -60,6 +86,7 @@ function HomePage() {
         setUserName("");
         setUserRole("");
         setIsMobileNavOpen(false); // ADD
+        setIsUserMenuOpen(false);
         navigate('/');
     };
 
@@ -107,15 +134,46 @@ function HomePage() {
                         {!isLoggedIn ? (
                             <>
                                 <Link to="/login" className="nav-link-auth" onClick={closeMobileNav}>Login</Link>
-                                <Link to="/register" className="nav-link-auth" onClick={closeMobileNav}>Register</Link>
+                                <Link to="/register" className="nav-link-register" onClick={closeMobileNav}>Register</Link>
                             </>
                         ) : (
-                            <div className="user-nav-group">
-                                <span className="welcome-text">
-                                    Chào, <strong className="hero-gradient">{userName}</strong>!
-                                </span>
-                                <Link to="/profile" className="nav-link" onClick={closeMobileNav} style={{ color: '#fff', textDecoration: 'none', fontSize: '0.9rem', marginRight: '1rem' }}>Profile</Link>
-                                <button onClick={handleLogout} className="logout-btn">Logout</button>
+                            <div className="user-menu" ref={userMenuRef}>
+                                <button
+                                    type="button"
+                                    className="user-menu-trigger"
+                                    onClick={() => setIsUserMenuOpen((v) => !v)}
+                                    aria-expanded={isUserMenuOpen}
+                                    aria-haspopup="menu"
+                                >
+                                    <span className="welcome-text">
+                                        Chào, <strong>{userName}</strong>
+                                    </span>
+                                    <span className="user-menu-caret" aria-hidden="true">▾</span>
+                                </button>
+
+                                {isUserMenuOpen && (
+                                    <div className="user-menu-dropdown" role="menu">
+                                        <Link
+                                            to="/profile"
+                                            className="user-menu-item"
+                                            role="menuitem"
+                                            onClick={() => {
+                                                setIsUserMenuOpen(false);
+                                                closeMobileNav();
+                                            }}
+                                        >
+                                            Profile
+                                        </Link>
+                                        <button
+                                            type="button"
+                                            className="user-menu-item logout-btn"
+                                            role="menuitem"
+                                            onClick={handleLogout}
+                                        >
+                                            Logout
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </nav>
