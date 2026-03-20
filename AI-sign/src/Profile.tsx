@@ -1,7 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from './api/axios';
+import { getStatistics, getLecturerSummary } from './api/axios';
 import './Auth.css';
+
+interface SignScore {
+    signName: string;
+    maxScore: number;
+}
+
+interface TimelineEntry {
+    date: string;
+    averageScore: number;
+    attemptCount: number;
+}
+
+interface Statistics {
+    completedLessons: number;
+    highestScores: SignScore[];
+    timeline: TimelineEntry[];
+    message?: string;
+}
 
 const Profile: React.FC = () => {
     const navigate = useNavigate();
@@ -11,6 +30,9 @@ const Profile: React.FC = () => {
     });
     
     const [profile, setProfile] = useState<{ email: string; role: string; fullName: string; phone: string } | null>(null);
+    const [statistics, setStatistics] = useState<Statistics | null>(null);
+    const [lecturerSummary, setLecturerSummary] = useState<string | null>(null);
+    
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | null }>({
@@ -19,14 +41,27 @@ const Profile: React.FC = () => {
     });
 
     useEffect(() => {
-        const fetchProfile = async () => {
+        const fetchProfileData = async () => {
             try {
-                const res = await api.get('/Auth/profile');
-                setProfile(res.data);
+                const [profileRes, statsRes, summaryRes] = await Promise.all([
+                    api.get('/Auth/profile'),
+                    getStatistics().catch(() => ({ data: null })),
+                    getLecturerSummary().catch(() => ({ data: { summary: "Could not load summary at this time." } }))
+                ]);
+
+                setProfile(profileRes.data);
                 setFormData({
-                    fullName: res.data.fullName || '',
-                    phone: res.data.phone || ''
+                    fullName: profileRes.data.fullName || '',
+                    phone: profileRes.data.phone || ''
                 });
+
+                if (statsRes.data && !statsRes.data.message) {
+                    setStatistics(statsRes.data);
+                }
+
+                if (summaryRes.data) {
+                    setLecturerSummary(summaryRes.data.summary ?? summaryRes.data);
+                }
             } catch (err) {
                 console.error("Failed to load profile", err);
                 navigate('/login');
@@ -35,7 +70,7 @@ const Profile: React.FC = () => {
             }
         };
 
-        fetchProfile();
+        fetchProfileData();
     }, [navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -122,6 +157,52 @@ const Profile: React.FC = () => {
                         Back to Home
                     </button>
                 </form>
+
+                {(statistics || lecturerSummary) && (
+                    <div className="profile-stats-container">
+                        <h2 className="hero-gradient" style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center', fontWeight: 'bold' }}>
+                            Practice Progress
+                        </h2>
+                        
+                        {statistics && (
+                            <div className="stats-card">
+                                <h3>Overview</h3>
+                                <div className="stat-item">
+                                    <span>Completed Lessons</span>
+                                    <span className="stat-value">{statistics.completedLessons}</span>
+                                </div>
+                                <div className="stat-item">
+                                    <span>Total Practice Sessions</span>
+                                    <span className="stat-value">
+                                        {statistics.timeline?.reduce((acc, curr) => acc + curr.attemptCount, 0) || 0}
+                                    </span>
+                                </div>
+                                
+                                {statistics.highestScores?.length > 0 && (
+                                    <>
+                                        <h3 style={{ marginTop: '1.5rem' }}>Top Sign Scores</h3>
+                                        <div className="score-chips">
+                                            {statistics.highestScores.map(score => (
+                                                <div key={score.signName} className="score-chip">
+                                                    {score.signName}: {score.maxScore.toFixed(0)}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {lecturerSummary && (
+                            <div className="stats-card">
+                                <h3>Lecturer Feedback</h3>
+                                <div className="lecturer-feedback">
+                                    "{lecturerSummary}"
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

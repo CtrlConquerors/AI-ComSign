@@ -3,10 +3,14 @@ using Microsoft.EntityFrameworkCore;
 using AI_BE.Data;
 using AI_BE.Models;
 
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
+
 namespace AI_BE.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class ProgressController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -16,12 +20,16 @@ public class ProgressController : ControllerBase
         _context = context;
     }
 
-    [HttpGet("{userId}/statistics")]
-    public async Task<IActionResult> GetStatistics(Guid userId)
+    [HttpGet("statistics")]
+    public async Task<IActionResult> GetStatistics()
     {
+        var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(idClaim) || !Guid.TryParse(idClaim, out var userId))
+            return Unauthorized();
+
         var userAttempts = await _context.Attempts
-            .Include(a => a.Sign)
             .Where(a => a.Session!.LearnerId == userId)
+            .Select(a => new { a.SignName, a.Score, a.CreatedAt })
             .ToListAsync();
 
         if (!userAttempts.Any()) return Ok(new { message = "Chưa có dữ liệu luyện tập." });
@@ -44,6 +52,7 @@ public class ProgressController : ControllerBase
         }
 
         var highestScoresPerSign = userAttempts
+            .Where(a => !string.IsNullOrEmpty(a.SignName))
             .GroupBy(a => a.SignName)
             .Select(g => new { SignName = g.Key, MaxScore = g.Max(a => a.Score) })
             .ToList();
@@ -66,11 +75,19 @@ public class ProgressController : ControllerBase
         });
     }
 
-    [HttpGet("{userId}/lecturer-summary")]
-    public async Task<IActionResult> GetLecturerSummary(Guid userId)
+    [HttpGet("lecturer-summary")]
+    public async Task<IActionResult> GetLecturerSummary()
     {
-        var attempts = await _context.Attempts.Where(a => a.Session!.LearnerId == userId).ToListAsync();
-        if (!attempts.Any()) return Ok("Bắt đầu luyện tập để nhận đánh giá từ giảng viên.");
+        var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(idClaim) || !Guid.TryParse(idClaim, out var userId))
+            return Unauthorized();
+
+        var attempts = await _context.Attempts
+            .Where(a => a.Session!.LearnerId == userId)
+            .Select(a => new { a.SignId, a.Score })
+            .ToListAsync();
+
+        if (!attempts.Any()) return Ok(new { Summary = "Bắt đầu luyện tập để nhận đánh giá từ giảng viên." });
 
         double avgScore = attempts.Average(a => a.Score);
         string evaluation;
@@ -83,6 +100,7 @@ public class ProgressController : ControllerBase
             evaluation = "Bạn cần dành thêm thời gian xem video demo và luyện tập kỹ các tư thế chuẩn.";
 
         var weakestSign = attempts
+            .Where(a => a.SignId != null)
             .GroupBy(a => a.SignId)
             .Select(g => new { SignId = g.Key, Avg = g.Average(a => a.Score) })
             .OrderBy(g => g.Avg)

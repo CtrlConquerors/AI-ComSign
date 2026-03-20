@@ -38,3 +38,7 @@ export const getPracticeHistory = () =>
 // Admin stats
 export const getAdminPracticeStats = () =>
   api.get<AdminPracticeStatsDto>('/admin/practice-stats');
+
+// Progress stats
+export const getStatistics = () => api.get('/Progress/statistics');
+export const getLecturerSummary = () => api.get('/Progress/lecturer-summary');
