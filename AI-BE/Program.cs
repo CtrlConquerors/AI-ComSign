@@ -99,6 +99,20 @@ builder.Services.AddCors(options => {
 
 var app = builder.Build();
 
+// Apply pending EF Core migrations on startup, then seed default accounts.
+// Database.Migrate() is safe on a fresh DB (creates schema) and on an
+// already-migrated DB (no-ops) — no manual `dotnet ef database update` needed.
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var db = services.GetRequiredService<AppDbContext>();
+    var hasher = services.GetRequiredService<IPasswordHasher<Learner>>();
+    var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
+
+    db.Database.Migrate();
+    await DbSeeder.SeedAsync(db, hasher, builder.Configuration, logger);
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

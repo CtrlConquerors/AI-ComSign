@@ -693,3 +693,4 @@ fabric.properties
 *.drawio.bkp
 AI-BE/appsettings.json
 .worktrees/
+.env
