@@ -6,7 +6,9 @@ import {
 } from "@mediapipe/tasks-vision";
 import "./AdminExtraction.css";
 
-const API_BASE = "http://localhost:5197";
+// Same convention as src/api/axios.ts: relative URL goes through the Vite dev proxy
+// (or Caddy in Docker). Override with VITE_API_BASE_URL for an absolute host.
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '';
 
 function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
     const token = localStorage.getItem("token");

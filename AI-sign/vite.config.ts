@@ -9,7 +9,9 @@ export default defineConfig({
         allowedHosts: ['landlordly-superofficiously-edmundo.ngrok-free.dev'],
         proxy: {
             '/api': {
-                target: 'http://localhost:5197',
+                // Backend is exposed on the Docker host at 9090 (-> container 8080).
+                // Override with VITE_API_TARGET env var if you run the BE elsewhere.
+                target: process.env.VITE_API_TARGET ?? 'http://localhost:9090',
                 changeOrigin: true,
                 secure: false,
             }
