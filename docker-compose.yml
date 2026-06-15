@@ -10,6 +10,11 @@ services:
       # Supabase Connection String (Transaction Pooler port 6543 recommended, or Session port 5432)
       # Format: "Host=aws-0-us-east-1.pooler.supabase.com;Port=6543;Database=postgres;Username=...;Password=..."
       ConnectionStrings__DefaultConnection: "${SUPABASE_CONNECTION_STRING}"
+      # JWT signing key. MUST be set in the host environment (e.g. .env file).
+      # Override JWT_SECRET in production; the default below is a dev-only fallback.
+      JwtSettings__Key: ${JWT_SECRET:-dev-only-change-me-in-production-this-is-not-secure-32+chars}
+      JwtSettings__Issuer: "AI-ComSign"
+      JwtSettings__Audience: "AI-ComSign"
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
     networks:
